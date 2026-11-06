@@ -1,0 +1,13 @@
+# nada de claves ni datos del server en GitHub: eso vive solo en la VM
+*.db
+*.db-*
+*_key
+.env
+lore.txt
+lore_auto.txt
+ia_contexto
+palabras_vetadas.txt
+modo_error
+flag_apagado
+diploma/
+__pycache__/
