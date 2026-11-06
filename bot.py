@@ -99,7 +99,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto gif` → busco un gif y le pongo texto (`!puto gif perro` busca uno de perro)
 `!puto meme algo` → gif random con tu texto encima
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
-`!puto habla` → digo algo en el vc
+`!puto habla` → digo algo en el vc (con voz de verdad)
 `!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
 tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
@@ -978,6 +978,33 @@ def make_stock(imagen: bytes, texto: str) -> bytes:
     return salida.getvalue()
 
 
+def nota_de_voz(audio: bytes, barras=256):
+    """mp3 -> (ogg/opus, segundos, waveform en base64) para mandarlo como nota de voz de Discord."""
+    import subprocess, tempfile
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("falta ffmpeg")
+    with tempfile.TemporaryDirectory() as d:
+        entrada, salida = os.path.join(d, "in.mp3"), os.path.join(d, "voz.ogg")
+        with open(entrada, "wb") as fh:
+            fh.write(audio)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", entrada, "-ac", "1", "-ar", "48000",
+                        "-c:a", "libopus", "-b:a", "64k", salida], check=True, timeout=60)
+        pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", entrada, "-ac", "1", "-ar", "8000", "-f", "s16le", "-"],
+                             check=True, timeout=60, capture_output=True).stdout
+        with open(salida, "rb") as fh:
+            ogg = fh.read()
+    muestras = [int.from_bytes(pcm[i:i + 2], "little", signed=True) for i in range(0, len(pcm) - 1, 2)]
+    segundos = max(len(muestras) / 8000, 0.1)
+    if muestras:
+        paso = max(1, len(muestras) // barras)
+        picos = [max(abs(x) for x in muestras[i:i + paso]) for i in range(0, len(muestras), paso)][:barras]
+    else:
+        picos = [0]
+    tope = max(picos) or 1
+    onda = bytes(min(255, int(255 * v / tope)) for v in picos)
+    return ogg, round(segundos, 2), base64.b64encode(onda).decode()
+
+
 class Brain:
     """Sólo se usa desde el hilo que crea esta instancia."""
 
@@ -1611,6 +1638,8 @@ class Config:
     tts_min: int = 20
     tts_max: int = 40
     tts_voice: str = "es-419"
+    audio_chance: float = 0.05
+    audio_cooldown: float = 120.0
     direct_min: int = 12
     direct_max: int = 18
     db_path: str = "markov.db"
@@ -1656,6 +1685,8 @@ class Config:
                    tts_min=number("TTS_MIN", 20, 1, 1440, int),
                    tts_max=number("TTS_MAX", 40, 1, 1440, int),
                    tts_voice=os.environ.get("TTS_VOICE", "es-419"),
+                   audio_chance=number("AUDIO_CHANCE", .05, 0, 1),
+                   audio_cooldown=number("AUDIO_COOLDOWN", 120, 0, 86400),
                    direct_min=number("DIRECT_MIN", 12, 1, 1000, int),
                    direct_max=number("DIRECT_MAX", 18, 1, 1000, int),
                    db_path=os.environ.get("DB_PATH", "markov.db"),
@@ -1807,6 +1838,7 @@ def create_client(config):
             self.juegos = {}
             self.horoscopos = {}
             self.ultimo_clon = {}
+            self.ultimo_audio = {}
             self.stock_busy = set()
             # apagado: se queda en el vc pero no habla ni escribe hasta "!puto prender" (sobrevive a reinicios)
             self.flag_apagado = os.path.join(os.path.dirname(os.path.abspath(config.db_path)), "apagado")
@@ -3233,12 +3265,84 @@ def create_client(config):
                 return f"hace {dias // 30} mes" + ("es" if dias >= 60 else "")
             return f"hace {dias // 365} año" + ("s" if dias >= 730 else "")
 
-        async def say(self, text):
-            """Dice algo en el vc con voz robotica (espeak-ng + ffmpeg)."""
+        # ---------------- ElevenLabs: solo para "!puto habla" y los audios del chat ----------------
+        def clave_eleven(self):
+            return self._leer_clave("ELEVENLABS_API_KEY", "elevenlabs_key")
+
+        async def voz_eleven(self, text):
+            """Texto -> mp3 con ElevenLabs. None si no hay clave o falla (se usa espeak de respaldo)."""
+            clave = self.clave_eleven()
+            if not clave or not text:
+                return None
+            import aiohttp
+            if self.sesion is None or self.sesion.closed:
+                self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40))
+            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "JBFqnCBsd6RMkjVDRZzb"
+            modelo = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model") or "eleven_multilingual_v2"
+            try:
+                async with self.sesion.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz}",
+                                            params={"output_format": "mp3_44100_128"},
+                                            headers={"xi-api-key": clave},
+                                            json={"text": text[:250], "model_id": modelo},
+                                            timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    if r.status != 200:
+                        log.warning("ElevenLabs respondio %s: %s", r.status, (await r.text())[:200])
+                        return None
+                    return await leer_todo(r, 5_000_000)
+            except Exception:
+                log.exception("Fallo ElevenLabs")
+                return None
+
+        async def mandar_audio(self, channel, text):
+            """Manda una nota de voz (la burbuja con la onda). Si Discord no la acepta, manda el mp3 normal."""
+            mp3 = await self.voz_eleven(text)
+            if not mp3:
+                return False
+            try:
+                ogg, segundos, onda = await asyncio.to_thread(nota_de_voz, mp3)
+            except Exception:
+                log.exception("No pude convertir el audio a nota de voz")
+                ogg = None
+            if ogg:
+                import aiohttp
+                datos = aiohttp.FormData()
+                datos.add_field("payload_json", json.dumps({
+                    "flags": 1 << 13,  # IS_VOICE_MESSAGE
+                    "attachments": [{"id": "0", "filename": "voice-message.ogg",
+                                     "duration_secs": segundos, "waveform": onda}]}),
+                    content_type="application/json")
+                datos.add_field("files[0]", ogg, filename="voice-message.ogg", content_type="audio/ogg")
+                try:
+                    async with self.sesion.post(f"https://discord.com/api/v10/channels/{channel.id}/messages",
+                                                data=datos, headers={"Authorization": f"Bot {config.token}"}) as r:
+                        if r.status in (200, 201):
+                            return True
+                        log.warning("Discord no acepto la nota de voz (%s): %s", r.status, (await r.text())[:200])
+                except Exception:
+                    log.exception("Fallo al mandar la nota de voz")
+            try:
+                await channel.send(file=discord.File(io.BytesIO(mp3), filename="puto.mp3"))
+                return True
+            except discord.HTTPException:
+                return False
+
+        async def say(self, text, eleven=False):
+            """Dice algo en el vc. Con eleven=True usa ElevenLabs; si no hay clave o falla, voz robotica (espeak-ng)."""
             canal = self.get_channel(config.voice_channel_id)
             vc = canal.guild.voice_client if canal else None
             if not text or not vc or not vc.is_connected() or vc.is_playing():
                 return False
+            if eleven and shutil.which("ffmpeg"):
+                mp3 = await self.voz_eleven(text)
+                if mp3:
+                    path = os.path.abspath("tts_eleven.mp3")
+                    with open(path, "wb") as fh:
+                        fh.write(mp3)
+                    try:
+                        vc.play(discord.FFmpegPCMAudio(path))
+                        return True
+                    except Exception:
+                        log.exception("No pude reproducir el audio de ElevenLabs")
             if not (shutil.which("espeak-ng") and shutil.which("ffmpeg")):
                 log.warning("Falta espeak-ng o ffmpeg para hablar en el vc")
                 return False
@@ -3626,7 +3730,7 @@ def create_client(config):
                 await self.send_text(message, texto, reply=False)
             elif action in ("habla", "di"):
                 text = await self.worker.call("reply", guild.id, SHARED, "")
-                ok = await self.say(text)
+                ok = await self.say(text, eleven=True)
                 await self.send_text(message, "ahi va" if ok else "no puedo hablar ahorita, tengo la boca ocupada")
             else:
                 await self.send_text(message, "que traes pendejito -_-")
@@ -3715,6 +3819,16 @@ def create_client(config):
                         await self.worker.call("learn", mid, guild.id, cid, uid, text, revision)
                         await asyncio.sleep(random.uniform(1, 3))
                         await self.como(message.channel, message.author, clon, sufijo=" bot")
+                        return
+                # 1 de cada 20 mensajes (AUDIO_CHANCE) manda una nota de voz con ElevenLabs. Máximo 1 cada 2 min por canal.
+                if not mentioned and random.random() < config.audio_chance and p.send_messages and p.attach_files \
+                        and time.monotonic() - self.ultimo_audio.get(cid, -1e9) >= config.audio_cooldown \
+                        and self.clave_eleven():
+                    frase = await self.worker.call("reply", guild.id, SHARED, message.content)
+                    if frase:
+                        self.ultimo_audio[cid] = time.monotonic()
+                        await self.worker.call("learn", mid, guild.id, cid, uid, text, revision)
+                        await self.mandar_audio(message.channel, frase)
                         return
                 # Cada 12-18 mensajes le habla directo a quien escribió.
                 cid = message.channel.id

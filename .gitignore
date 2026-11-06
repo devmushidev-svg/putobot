@@ -16,3 +16,6 @@ modo_error
 flag_apagado
 diploma/
 __pycache__/
+elevenlabs_voice
+elevenlabs_model
+tts_eleven.mp3
