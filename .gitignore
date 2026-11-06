@@ -6,6 +6,11 @@
 lore.txt
 lore_auto.txt
 ia_contexto
+groq_models
+gemini_models
+gemini_lore_models
+ollama_url
+ollama_model
 palabras_vetadas.txt
 modo_error
 flag_apagado
