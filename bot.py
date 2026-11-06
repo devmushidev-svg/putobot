@@ -3269,29 +3269,66 @@ def create_client(config):
         def clave_eleven(self):
             return self._leer_clave("ELEVENLABS_API_KEY", "elevenlabs_key")
 
+        async def etiquetar_voz(self, text):
+            """Le pone etiquetas de ElevenLabs ([laughs], [sighs], [sarcastic]...) y pausas para que suene natural.
+            Usa la IA si hay; si no, unas reglas simples."""
+            text = re.sub(r"https?://\S+|<[@#:!&a-zA-Z0-9_]+>", "", text or "").strip()[:200]
+            if not text:
+                return text
+            if self.proveedores_ia():
+                with suppress(Exception):
+                    etiquetado = await self.ia(lambda n: [
+                        {"role": "system", "content": "Vas a preparar una frase para que la diga una voz de ElevenLabs y suene "
+                            "como una persona de verdad hablando en un chat de voz con amigos. Agregale entre 2 y 4 etiquetas de "
+                            "audio en inglés entre corchetes, donde tengan sentido: emociones o forma de decirlo ([sarcastic], "
+                            "[excited], [curious], [mischievously], [deadpan], [annoyed], [whispers], [shouting]) y sonidos "
+                            "([laughs], [chuckles], [laughs harder], [sighs], [exhales], [snorts], [clears throat]). Ponelas "
+                            "justo antes o después de la parte que modifican. Podés usar puntos suspensivos para pausas y "
+                            "MAYÚSCULAS en alguna palabra para enfatizar. Cambiá \"jaja\" o \"jsjs\" por [laughs]. No cambies "
+                            "ni agregues palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
+                        {"role": "user", "content": text},
+                    ], max_tokens=200, temperatura=0.7, tiempo=12)
+                    if etiquetado and "[" in etiquetado and len(etiquetado) < 400:
+                        return etiquetado.strip().strip('"')
+            # sin IA: reglas simples
+            text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
+            inicio = random.choice(["[sarcastic]", "[deadpan]", "[mischievously]", "[curious]", "[excited]", "", ""])
+            final = random.choice(["[chuckles]", "[sighs]", "[laughs]", "", ""])
+            if "?" not in text and random.random() < 0.5:
+                text = re.sub(r",\s*", "... ", text, count=1)
+            return " ".join(x for x in (inicio, text, final) if x)
+
         async def voz_eleven(self, text):
-            """Texto -> mp3 con ElevenLabs. None si no hay clave o falla (se usa espeak de respaldo)."""
+            """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla."""
             clave = self.clave_eleven()
             if not clave or not text:
                 return None
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40))
-            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "JBFqnCBsd6RMkjVDRZzb"
-            modelo = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model") or "eleven_multilingual_v2"
-            try:
-                async with self.sesion.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz}",
-                                            params={"output_format": "mp3_44100_128"},
-                                            headers={"xi-api-key": clave},
-                                            json={"text": text[:250], "model_id": modelo},
-                                            timeout=aiohttp.ClientTimeout(total=30)) as r:
-                    if r.status != 200:
-                        log.warning("ElevenLabs respondio %s: %s", r.status, (await r.text())[:200])
-                        return None
-                    return await leer_todo(r, 5_000_000)
-            except Exception:
-                log.exception("Fallo ElevenLabs")
-                return None
+            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "tTQzD8U9VSnJgfwC6HbY"
+            elegido = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model")
+            modelos = [elegido] if elegido else ["eleven_v4", "eleven_v3", "eleven_multilingual_v2"]
+            etiquetado = await self.etiquetar_voz(text)
+            for modelo in modelos:
+                # el modelo viejo no entiende etiquetas: a ese se le manda la frase limpia
+                frase = etiquetado if modelo in ("eleven_v4", "eleven_v3") else re.sub(r"\[[^\]]*\]\s*", "", etiquetado)
+                try:
+                    async with self.sesion.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz}",
+                                                params={"output_format": "mp3_44100_128"},
+                                                headers={"xi-api-key": clave},
+                                                json={"text": frase[:400], "model_id": modelo},
+                                                timeout=aiohttp.ClientTimeout(total=30)) as r:
+                        if r.status != 200:
+                            log.warning("ElevenLabs %s respondio %s: %s", modelo, r.status, (await r.text())[:200])
+                            if r.status in (401, 429):  # clave mala o sin créditos: no sirve probar otro modelo
+                                return None
+                            continue
+                        log.info("ElevenLabs %s: %s", modelo, frase[:120])
+                        return await leer_todo(r, 5_000_000)
+                except Exception:
+                    log.exception("Fallo ElevenLabs (%s)", modelo)
+            return None
 
         async def mandar_audio(self, channel, text):
             """Manda una nota de voz (la burbuja con la onda). Si Discord no la acepta, manda el mp3 normal."""
