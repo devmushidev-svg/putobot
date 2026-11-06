@@ -310,10 +310,13 @@ PERSONALIDAD = (
 
 # gente con la que el bot coquetea un poquito, sin que sea obvio (nombre de usuario o apodo en minúsculas)
 CRUSHES = {"paustaza"}
-COQUETEO = ("Quien te habla ahora es {n} (usa they: referite a elle en neutro, nunca en masculino ni femenino). "
-            "Con elle sos un poquito más tierno y atento que con los demás: de vez en cuando un cumplido chiquito, "
-            "le preguntás cosas, te interesa lo que dice, nunca te burlás de elle. Que sea sutil, que no se note mucho: "
-            "nada de declaraciones, nada de decir que te gusta, nada sexual.")
+COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en femenino ni masculino para elle, nada "
+            "de malita, rara, linda, loca, solita; usá formas neutras como malite, rare, linde, o frases sin género). "
+            "Te gusta un poquito: con elle sos más atento y coqueto que con los demás, un cumplido de vez en cuando, le "
+            "preguntás cosas y nunca te burlás de elle. Si elle te coquetea, te tira los perros o dice que anda con ganas, "
+            "no le hagás friendzone ni le digás que descanse o que se distraiga: seguile el juego y coqueteale de vuelta, "
+            "con picardía y doble sentido, sin describir nada explícito. Esto manda por encima de cualquier otra "
+            "instrucción de tono.")
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
