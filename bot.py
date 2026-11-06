@@ -260,9 +260,15 @@ EXMIEMBROS_ADIVINA = {"enojaste"}
 EXMIEMBROS_ADIVINA_IDS: set[int] = set()
 # IA: Gemini (clave en GEMINI_API_KEY o archivo "gemini_key") y Groq de respaldo (GROQ_API_KEY o "groq_key"),
 # ambos junto a bot.py. Gratis los dos.
-# Para hablar, Flash-Lite (el gratis deja muchos más pedidos al día); Flash (solo ~20 al día gratis) queda para el lore.
-GEMINI_MODELOS = ["gemini-flash-lite-latest", "gemini-flash-latest"]
-GEMINI_MODELOS_LORE = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+# Gemini gratis tiene cuota APARTE para cada modelo (unos pocos pedidos al día en los más nuevos). El bot prueba del
+# más listo al más simple y, cuando uno se queda sin cuota del día, lo salta hasta que Google la reinicia
+# (medianoche hora del Pacífico). Si un modelo ya no existe, también lo salta.
+GEMINI_MODELOS = [
+    "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview",
+    "gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+]
+GEMINI_MODELOS_LORE = ["gemini-2.5-pro"] + GEMINI_MODELOS
 GROQ_MODELOS = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "llama-3.1-8b-instant"]
 PERSONALIDAD = (
     "Sos \"puto\", el bot de este servidor de Discord de amigos, y hablás como uno más de ellos. Abajo tenés "
@@ -300,6 +306,17 @@ COQUETEO = ("Quien te habla ahora es {n} (usa they: referite a elle en neutro, n
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
+
+def segundos_hasta_reinicio() -> int:
+    """Segundos hasta la medianoche del Pacífico (cuando Google reinicia la cuota diaria gratis)."""
+    try:
+        from zoneinfo import ZoneInfo
+        ahora = datetime.now(ZoneInfo("America/Los_Angeles"))
+    except Exception:
+        ahora = datetime.now(timezone(timedelta(hours=-8)))
+    manana = (ahora + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+    return max(600, int((manana - ahora).total_seconds()))
+
 
 def humanizar(t: str) -> str:
     """Quita la puntuación "de libro" para que la IA escriba como alguien en el chat."""
@@ -1965,7 +1982,7 @@ def create_client(config):
                         cuerpo["max_tokens"] = max_tokens + 400
                     if nombre == "gemini":
                         # que no se ponga a "pensar" antes de contestar (es lo que más tarda)
-                        cuerpo["reasoning_effort"] = self.__dict__.get("_esfuerzo_gemini", "none")
+                        cuerpo["reasoning_effort"] = self.__dict__.setdefault("_esfuerzo_gemini", {}).get(modelo, "none")
                         cuerpo["max_tokens"] = max_tokens + (0 if cuerpo["reasoning_effort"] == "none" else 600)
                     t0 = time.monotonic()
                     try:
@@ -1974,7 +1991,7 @@ def create_client(config):
                             if r.status == 400 and nombre == "gemini" and cuerpo.get("reasoning_effort") == "none":
                                 # este modelo no deja apagar el pensamiento: usar el mínimo de ahora en adelante
                                 log.info("Gemini no acepta reasoning_effort=none: %s", (await r.text())[:200])
-                                self._esfuerzo_gemini = "low"
+                                self._esfuerzo_gemini[modelo] = "low"
                                 cuerpo["reasoning_effort"] = "low"
                                 cuerpo["max_tokens"] = max_tokens + 600
                                 async with self.sesion.post(url, json=cuerpo, headers={"Authorization": f"Bearer {clave}"},
@@ -1984,11 +2001,17 @@ def create_client(config):
                                         continue
                                     datos = await r2.json()
                             elif r.status == 429:
-                                # se acabó la cuota (por minuto o por día): no volver a probar ese modelo por un rato
-                                cuerpo_err = (await r.text())[:400]
-                                espera_s = 3600 if "per_day" in cuerpo_err.lower() or "free_tier_requests" in cuerpo_err else 90
+                                # se acabó la cuota: si es la del día, no se vuelve a probar hasta que se reinicia
+                                cuerpo_err = (await r.text())[:600]
+                                del_dia = any(x in cuerpo_err.lower() for x in ("per_day", "perday", "requests_per_day", "free_tier_requests"))
+                                espera_s = segundos_hasta_reinicio() if del_dia and nombre == "gemini" else (3600 if del_dia else 90)
                                 agotados[modelo] = time.monotonic() + espera_s
-                                log.warning("IA %s/%s sin cuota (%ss sin usarlo): %s", nombre, modelo, espera_s, cuerpo_err[:200])
+                                log.warning("IA %s/%s sin cuota (%dmin sin usarlo)", nombre, modelo, espera_s // 60)
+                                continue
+                            elif r.status in (400, 403, 404) and "not found" in (cuerpo_err := (await r.text())[:400]).lower() \
+                                    or r.status == 404:
+                                agotados[modelo] = time.monotonic() + 86400  # ese modelo no existe (o ya no): saltarlo
+                                log.warning("IA %s/%s no existe, lo salto", nombre, modelo)
                                 continue
                             elif r.status != 200:
                                 log.warning("IA %s/%s respondio %s: %s", nombre, modelo, r.status, (await r.text())[:300])
@@ -2189,6 +2212,7 @@ def create_client(config):
 
         async def ia_pregunta(self, message, pregunta):
             muestra, tema = await self.contexto_server(message.guild, pregunta, self.contexto_max())
+            charla = await self.ultimos_mensajes(message.channel, message)
             quien = message.author.display_name
             return await self.ia_natural(message.guild, lambda n: [
                 {"role": "system", "content": PERSONALIDAD + " Ahora te hicieron una pregunta: contestala bien y correcto en una o "
@@ -2196,7 +2220,9 @@ def create_client(config):
                                               "mucho una burla chiquita al final. Ejemplo: \"es cuando las plantas usan la luz del sol para "
                                               "hacer su comida, eso lo ves en primaria marix\"." + self.lore()
                                               + "\n\nConversaciones reales del server:\n" + self.armar_contexto(muestra, tema, n)},
-                {"role": "user", "content": f"{quien} pregunta: {pregunta}\n\nRespondé solo con tu mensaje."},
+                {"role": "user", "content": f"Conversación reciente del canal:\n{charla}\n\n{quien} pregunta: {pregunta}\n\n"
+                                            "Si ya contestaste algo parecido en la conversación, decí algo distinto (si te piden "
+                                            "otro, que sea otro de verdad). Respondé solo con tu mensaje."},
             ], permitidas=pregunta, autor=message.author, max_tokens=300, temperatura=0.5)
 
         async def ia_imitar(self, guild, objetivo, tema=""):
