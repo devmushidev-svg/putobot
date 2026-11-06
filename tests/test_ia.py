@@ -143,6 +143,30 @@ class ClienteTests(unittest.IsolatedAsyncioTestCase):
         actual.mentions = [SimpleNamespace(id=50), SimpleNamespace(id=999)]
         self.assertEqual(self.client.personas_ia(actual, actual.content), (30, 50))
 
+    async def test_respuesta_larga_se_acorta_sin_otra_consulta(self):
+        largo = ("no te odio solo me da risa hablar con vos cuando venís a jugar y después "
+                 "te vas a otro canal para contar lo mismo otra vez mientras todos seguimos jugando")
+        self.client.ia = AsyncMock(return_value=largo)
+        armar = lambda n: [{"role": "system", "content": bot.PERSONALIDAD},
+                          {"role": "user", "content": "me odias?"}]
+        salida = await self.client.ia_natural(self.guild, armar)
+        self.assertLessEqual(len(salida.split()), 20)
+        self.assertLessEqual(len(salida), 160)
+        self.client.ia.assert_awaited_once()
+        self.assertEqual(self.client.ia.call_args.kwargs["max_tokens"], 64)
+        instruccion = self.client.ia.call_args.args[0](35)[0]["content"]
+        self.assertIn("como máximo 20 palabras", instruccion)
+
+    async def test_imitacion_larga_tambien_se_limita(self):
+        self.client.proveedores_ia = Mock(return_value=[("groq", "offline", "falsa", ["modelo"], 35)])
+        self.client.worker.call = AsyncMock(return_value=["un mensaje de ejemplo"] * 6)
+        self.client.ia = AsyncMock(return_value="HOLA " + "texto " * 100)
+        salida = await self.client.ia_imitar(self.guild, SimpleNamespace(id=20, display_name="persona"))
+        self.assertTrue(salida.startswith("HOLA "))
+        self.assertLessEqual(len(salida.split()), 20)
+        self.assertLessEqual(len(salida), 160)
+        self.client.ia.assert_awaited_once()
+
     async def test_contexto_respeta_cupo_incluso_con_duplicados(self):
         recientes = [f"persona: reciente {n}" for n in range(20)]
         tema = [recientes[-1]] + [f"persona: tema {n}" for n in range(60)]

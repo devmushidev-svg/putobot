@@ -270,7 +270,7 @@ GROQ_MODELOS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
 PERSONALIDAD = (
     "Sos \"puto\", el bot de este servidor de Discord de amigos, y hablás como uno más de ellos. Abajo tenés "
     "conversaciones reales del server (cada línea es \"nombre: mensaje\"): copiá cómo hablan, sus palabras y "
-    "expresiones, el largo de sus mensajes (casi siempre una línea corta), en minúsculas. "
+    "expresiones, en minúsculas. Normalmente respondés con 8 a 15 palabras y una sola idea. "
     "Primero contestá lo que te dicen y seguí la conversación como un amigo más: respondé, opiná, preguntá o reíte. "
     "El grupo se llama la brigada y es buena onda: se llevan bien, se ríen juntos y muy pocas veces se tiran mala onda. "
     "Vos hablás como un amigo normal de ellos: tranquilo, directo, con humor seco, ni grosero ni empalagoso. Nada de "
@@ -343,6 +343,25 @@ def humanizar(t: str) -> str:
     t = re.sub(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñü]+\b", lambda m: m.group(0).lower(), t)
     t = re.sub(r"\s+,", ",", t)
     return re.sub(r"\s{2,}", " ", t).strip()
+
+
+def respuesta_corta(texto: str, palabras=20, caracteres=160) -> str:
+    """Respaldo local si el modelo ignora la brevedad, sin gastar otra consulta."""
+    texto = " ".join(texto.split())
+    if len(texto.split()) <= palabras and len(texto) <= caracteres:
+        return texto
+    primera = re.split(r"(?<=[.!?])\s+", texto, maxsplit=1)[0]
+    if primera != texto and len(primera.split()) <= palabras and len(primera) <= caracteres:
+        return primera
+    elegidas = []
+    for palabra in texto.split()[:palabras]:
+        if len(" ".join(elegidas + [palabra])) > caracteres - 1:
+            break
+        elegidas.append(palabra)
+    prefijo = " ".join(elegidas) or texto[:caracteres - 1]
+    return prefijo.rstrip(" ,;:.-") + "…"
+
+
 RANKINGS = {
     "adivina": "top stalkers:",
     "real": "los que huelen las mentiras:",
@@ -2295,12 +2314,16 @@ def create_client(config):
             nombres = {(getattr(miembro, a, None) or "").casefold() for a in ("name", "display_name", "global_name")}
             return any(c in n for c in CRUSHES for n in nombres if n)
 
-        async def ia_natural(self, guild, armar, permitidas="", autor=None, **kw):
+        async def ia_natural(self, guild, armar, permitidas="", autor=None,
+                             max_palabras=20, max_caracteres=160, **kw):
             # pide la respuesta; si dice alguna palabra vetada, le pide otra sin esa palabra (y si insiste, se la quita)
             vetadas = self.palabras_vetadas()
             regla = "\nNunca digas estas palabras: " + ", ".join(vetadas) + "."
             if autor is not None and self.es_crush(autor):
                 regla += "\n" + COQUETEO.format(n=autor.display_name)
+            regla += (f"\nRespuesta breve: una sola idea y como máximo {max_palabras} palabras. "
+                      "Contestá y terminá: no añadas otro tema, anécdotas ni una explicación de tus bromas.")
+            kw.setdefault("max_tokens", 64)
 
             def armar2(n):
                 m = armar(n)
@@ -2315,7 +2338,7 @@ def create_client(config):
                     {"role": "user", "content": "decilo de nuevo sin usar " + ", ".join(sorted({m.lower() for m in patron.findall(texto)})) +
                      ". solo el mensaje."}], **kw)
                 texto = otra if otra and not patron.search(otra) else patron.sub("", otra or texto)
-            return humanizar(texto)
+            return respuesta_corta(humanizar(texto), max_palabras, max_caracteres)
 
         async def ia_responder(self, message):
             # cuando lo mencionan o le responden: contesta con IA siguiendo la conversación
@@ -2366,7 +2389,8 @@ def create_client(config):
                 {"role": "user", "content": f"Conversación reciente del canal:\n{charla}\n\n{quien} pregunta: {pregunta}\n\n"
                                             "Si ya contestaste algo parecido en la conversación, decí algo distinto (si te piden "
                                             "otro, que sea otro de verdad). Respondé solo con tu mensaje."},
-            ], permitidas=pregunta, autor=message.author, max_tokens=300, temperatura=0.5)
+            ], permitidas=pregunta, autor=message.author, max_tokens=90, temperatura=0.5,
+               max_palabras=30, max_caracteres=220)
 
         async def ia_imitar(self, guild, objetivo, tema=""):
             # escribe un mensaje nuevo como si fuera esa persona, usando sus mensajes reales de ejemplo
@@ -2379,13 +2403,14 @@ def create_client(config):
             texto = await self.ia(lambda n: [
                 {"role": "system", "content": f"Vas a escribir UN mensaje de Discord haciéndote pasar por {nombre}, copiando su "
                     "forma de escribir: largo de los mensajes, mayúsculas o minúsculas, faltas de ortografía, palabras que repite, "
-                    "risas y temas. No escribas nada más que el mensaje, sin comillas ni su nombre. Nada de insultos racistas u "
+                    "risas y temas. Una sola idea, máximo 20 palabras: no juntes temas de varios ejemplos. "
+                    "No escribas nada más que el mensaje, sin comillas ni su nombre. Nada de insultos racistas u "
                     "homofóbicos ni contenido sexual explícito.\n\n"
                     f"Mensajes reales de {nombre}:\n" + "\n".join(ejemplos[:max(60, n // 4)])},
                 {"role": "user", "content": ("Escribí un mensaje nuevo suyo sobre: " + tema) if tema else
                                             "Escribí un mensaje nuevo suyo, que no sea copia de los ejemplos."},
-            ], max_tokens=120, temperatura=1.0)
-            return texto.split("\n")[0][:400] if texto else None
+            ], max_tokens=64, temperatura=1.0)
+            return respuesta_corta(texto) if texto else None
 
         async def cita_bot(self, message):
             # "!puto sexo": cita con el bot en 3 rondas. Cada ronda: lo que dice el bot y 4 botones,
@@ -3357,7 +3382,7 @@ def create_client(config):
                 if not text:
                     await self.send_text(message, f"{objetivo.display_name} no ha escrito suficiente para imitarlo, que aburrido")
                 else:
-                    await self.como(message.channel, objetivo, text)
+                    await self.como(message.channel, objetivo, respuesta_corta(text))
             elif action in ("apagar", "prender", "encender"):
                 await self.apagar_prender(message, action == "apagar")
             elif action == "sexo":

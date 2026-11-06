@@ -15,6 +15,8 @@ Para responder, el bot elige recuerdos por coincidencias del tema, personas menc
 de pasar conversaciones aleatorias. Busca palabras completas y reconoce tildes; todavía no es una búsqueda
 semántica con embeddings. También incluye mensajes recientes y el mensaje exacto al que alguien responde,
 aunque sea antiguo. Los ejemplos de tono del prompt son ilustrativos; no se guardan como recuerdos.
+La charla y la imitación se limitan a 20 palabras y 160 caracteres; `!puto pregunta`, a 30 palabras y
+220 caracteres. Se pide brevedad al modelo y se aplica un límite local si se alarga, sin otra llamada de IA.
 
 Esto es recuperación de contexto, no entrenamiento del modelo. Los borrados, ediciones y el comando para
 olvidar personas se reflejan en la selección, sin mantener otra copia del historial.
