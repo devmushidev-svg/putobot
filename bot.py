@@ -96,6 +96,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto desmo` → desmotivacion (con @x usa su foto, con un tema busca imagen, o adjunta una)
 `!puto img algo` → busco una imagen y le escribo encima
 `!puto pregunta algo` → te respondo (con IA)
+`!puto audio algo` → te respondo con una nota de voz
 `!puto gif` → busco un gif y le pongo texto (`!puto gif perro` busca uno de perro)
 `!puto meme algo` → gif random con tu texto encima
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
@@ -3514,6 +3515,20 @@ def create_client(config):
                     async with message.channel.typing():
                         respuesta = await self.ia_pregunta(message, pregunta[:500])
                     await self.send_text(message, respuesta or await self.worker.call("reply", guild.id, SHARED, pregunta) or "no sé")
+            elif action in ("audio", "voz"):
+                # como "!puto pregunta", pero contesta con una nota de voz (ElevenLabs)
+                pregunta = " ".join(message.content.split()[2:]).strip()
+                if not pregunta:
+                    await self.send_text(message, "preguntá algo, pendejo")
+                else:
+                    async with message.channel.typing():
+                        respuesta = None
+                        if self.clave_groq():
+                            respuesta = await self.ia_pregunta(message, pregunta[:500])
+                        respuesta = respuesta or await self.worker.call("reply", guild.id, SHARED, pregunta) or "no sé"
+                        enviado = await self.mandar_audio(message.channel, respuesta) if self.clave_eleven() else False
+                    if not enviado:
+                        await self.send_text(message, respuesta)  # sin ElevenLabs o sin créditos: en texto
             elif action == "imita":
                 objetivo = next((m for m in message.mentions if m.id != self.user.id), message.author)
                 tema = re.sub(r"<@!?\d+>", "", " ".join(message.content.split()[2:])).strip()[:200]
