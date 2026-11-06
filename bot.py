@@ -3311,7 +3311,12 @@ def create_client(config):
             elegido = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model")
             modelos = [elegido] if elegido else ["eleven_v4", "eleven_v3", "eleven_multilingual_v2"]
             etiquetado = await self.etiquetar_voz(text)
-            for modelo in modelos:
+            voz_respaldo = self._leer_clave("ELEVENLABS_VOICE_FALLBACK", "elevenlabs_voice_fallback") or "JBFqnCBsd6RMkjVDRZzb"
+            intentos = [(m, voz) for m in modelos] + [(m, voz_respaldo) for m in modelos if voz_respaldo != voz]
+            voces_bloqueadas = set()
+            for modelo, voz in intentos:
+                if voz in voces_bloqueadas:
+                    continue
                 # el modelo viejo no entiende etiquetas: a ese se le manda la frase limpia
                 frase = etiquetado if modelo in ("eleven_v4", "eleven_v3") else re.sub(r"\[[^\]]*\]\s*", "", etiquetado)
                 try:
@@ -3321,11 +3326,15 @@ def create_client(config):
                                                 json={"text": frase[:400], "model_id": modelo},
                                                 timeout=aiohttp.ClientTimeout(total=30)) as r:
                         if r.status != 200:
-                            log.warning("ElevenLabs %s respondio %s: %s", modelo, r.status, (await r.text())[:200])
+                            error = (await r.text())[:300]
+                            log.warning("ElevenLabs %s/%s respondio %s: %s", modelo, voz, r.status, error[:200])
                             if r.status in (401, 429):  # clave mala o sin créditos: no sirve probar otro modelo
                                 return None
+                            if "library voices" in error or "paid_plan_required" in error:
+                                # voz de la comunidad en plan gratis: pasar directo a la voz de respaldo
+                                voces_bloqueadas.add(voz)
                             continue
-                        log.info("ElevenLabs %s: %s", modelo, frase[:120])
+                        log.info("ElevenLabs %s/%s: %s", modelo, voz, frase[:120])
                         return await leer_todo(r, 5_000_000)
                 except Exception:
                     log.exception("Fallo ElevenLabs (%s)", modelo)
