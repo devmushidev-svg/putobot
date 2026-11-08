@@ -3286,7 +3286,13 @@ def create_client(config):
                 ("nervioso", "[nervous]", "[stammers]"), ("susurrando", "[whispers]", "[mischievously]"),
                 ("confundido", "[confused]", "[hmm]"), ("impaciente", "[impatient]", "[sighs]"),
             ]
-            animo, t1, t2 = random.choice(animos)
+            # la mitad de las veces grita o está enojado (es lo que más gracia da)
+            if random.random() < 0.5:
+                animo, t1, t2 = random.choice([("gritando", "[shouting]", "[yelling]"), ("enojado", "[angry]", "[shouting]"),
+                                               ("furioso", "[furious]", "[yelling]")])
+            else:
+                animo, t1, t2 = random.choice(animos)
+            grita = animo in ("gritando", "enojado", "furioso", "indignado", "emocionado")
             tiene_risa = bool(re.search(r"\bj[aeijs]{2,}|\bxd", text, re.I))
             if self.proveedores_ia():
                 with suppress(Exception):
@@ -3300,27 +3306,40 @@ def create_client(config):
                             "[scoffs] [gasps] [exhales] [tsk] [clears throat] [stammers]. "
                             + ("Como la frase tiene risa, cambiá el jaja por UN [laughs] o [chuckles]. " if tiene_risa else
                                "NO uses [laughs], [chuckles] ni ninguna risa. ")
-                            + "Ponelas justo antes de la parte que modifican. Si el ánimo es enojado o gritando, poné en "
-                            "MAYÚSCULAS las palabras fuertes. Usá puntos suspensivos para pausas. No cambies ni agregues "
-                            "palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
+                            + "Ponelas justo antes de la parte que modifican. "
+                            + ("TIENE QUE GRITAR DE VERDAD: empezá con [shouting] o [yelling], repetí una etiqueta de grito "
+                               "a la mitad, poné casi toda la frase en MAYÚSCULAS y terminá con signos de exclamación (!!). "
+                               if grita else "Usá MAYÚSCULAS en alguna palabra para dar énfasis. ")
+                            + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. No cambies ni "
+                            "agregues palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
                     ], max_tokens=200, temperatura=0.8, tiempo=12)
                     if etiquetado and "[" in etiquetado and len(etiquetado) < 400:
                         if not tiene_risa:
                             etiquetado = re.sub(r"\[(laughs[^\]]*|chuckles|giggles)\]\s*", "", etiquetado, flags=re.I)
-                        log.info("Voz con animo %s", animo)
+                        if grita:
+                            etiquetado = self.forzar_grito(etiquetado, t1)
+                        log.info("Voz con animo %s: %s", animo, etiquetado[:150])
                         return etiquetado.strip().strip('"')
             # sin IA: reglas simples con el ánimo elegido
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
-            if animo in ("enojado", "gritando", "indignado"):
-                palabras = text.split()
-                if palabras:
-                    k = random.randrange(len(palabras))
-                    palabras[k] = palabras[k].upper()
-                text = " ".join(palabras)
             if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
-            return f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
+            text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
+            return self.forzar_grito(text, t1) if grita else text
+
+        @staticmethod
+        def forzar_grito(t, etiqueta="[shouting]"):
+            """Asegura que grite: etiqueta de grito al inicio, texto en MAYÚSCULAS (no las etiquetas) y !! al final."""
+            if not re.match(r"\s*\[(shouting|yelling|angry|furious|outraged)", t, re.I):
+                t = f"{etiqueta} {t}"
+            t = re.sub(r"(\[[^\]]*\])|([^\[]+)", lambda m: m.group(1) or m.group(2).upper(), t)
+            t = re.sub(r"[.!?…]*\s*$", "", t.rstrip())
+            if t.endswith("]"):
+                t = re.sub(r"\s*(\[[^\]]*\])\s*$", r"!! \1", t)
+            else:
+                t += "!!"
+            return t
 
         async def voz_eleven(self, text):
             """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla."""
