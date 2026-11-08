@@ -3349,7 +3349,7 @@ def create_client(config):
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40))
-            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "tTQzD8U9VSnJgfwC6HbY"
+            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "nPczCjzI2devNBz1zQrb"  # Brian: masculina grave
             elegido = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model")
             modelos = [elegido] if elegido else ["eleven_v4", "eleven_v3", "eleven_multilingual_v2"]
             etiquetado = await self.etiquetar_voz(text)
