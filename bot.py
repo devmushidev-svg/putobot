@@ -3271,33 +3271,56 @@ def create_client(config):
             return self._leer_clave("ELEVENLABS_API_KEY", "elevenlabs_key")
 
         async def etiquetar_voz(self, text):
-            """Le pone etiquetas de ElevenLabs ([laughs], [sighs], [sarcastic]...) y pausas para que suene natural.
-            Usa la IA si hay; si no, unas reglas simples."""
+            """Le pone etiquetas de ElevenLabs para que suene natural y con emoción. Cada frase sale con un ánimo
+            distinto al azar (enojado, gritando, harto, sarcástico...) para que no se ría siempre."""
             text = re.sub(r"https?://\S+|<[@#:!&a-zA-Z0-9_]+>", "", text or "").strip()[:200]
             if not text:
                 return text
+            animos = [
+                ("enojado", "[angry]", "[frustrated]"), ("gritando", "[shouting]", "[yelling]"),
+                ("harto", "[annoyed]", "[groans]"), ("sarcástico", "[sarcastic]", "[scoffs]"),
+                ("indignado", "[outraged]", "[gasps]"), ("emocionado", "[excited]", "[shouting]"),
+                ("sin ganas", "[tired]", "[sighs]"), ("seco", "[deadpan]", "[exhales]"),
+                ("dramático", "[dramatic]", "[gasps]"), ("burlón", "[mischievously]", "[chuckles]"),
+                ("sorprendido", "[surprised]", "[gasps]"), ("asqueado", "[disgusted]", "[groans]"),
+                ("nervioso", "[nervous]", "[stammers]"), ("susurrando", "[whispers]", "[mischievously]"),
+                ("confundido", "[confused]", "[hmm]"), ("impaciente", "[impatient]", "[sighs]"),
+            ]
+            animo, t1, t2 = random.choice(animos)
+            tiene_risa = bool(re.search(r"\bj[aeijs]{2,}|\bxd", text, re.I))
             if self.proveedores_ia():
                 with suppress(Exception):
                     etiquetado = await self.ia(lambda n: [
-                        {"role": "system", "content": "Vas a preparar una frase para que la diga una voz de ElevenLabs y suene "
-                            "como una persona de verdad hablando en un chat de voz con amigos. Agregale entre 2 y 4 etiquetas de "
-                            "audio en inglés entre corchetes, donde tengan sentido: emociones o forma de decirlo ([sarcastic], "
-                            "[excited], [curious], [mischievously], [deadpan], [annoyed], [whispers], [shouting]) y sonidos "
-                            "([laughs], [chuckles], [laughs harder], [sighs], [exhales], [snorts], [clears throat]). Ponelas "
-                            "justo antes o después de la parte que modifican. Podés usar puntos suspensivos para pausas y "
-                            "MAYÚSCULAS en alguna palabra para enfatizar. Cambiá \"jaja\" o \"jsjs\" por [laughs]. No cambies "
-                            "ni agregues palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
+                        {"role": "system", "content": "Preparás una frase para que la diga una voz de ElevenLabs (Eleven v4) y "
+                            "suene como una persona de verdad en un chat de voz con amigos. El ánimo de esta frase es: "
+                            f"{animo} (por ejemplo {t1} o {t2}). Agregale de 2 a 4 etiquetas de audio en inglés entre "
+                            "corchetes, variadas y que vayan con ese ánimo, eligiendo entre: [angry] [frustrated] [shouting] "
+                            "[yelling] [annoyed] [outraged] [sarcastic] [deadpan] [excited] [dramatic] [disgusted] [surprised] "
+                            "[nervous] [confused] [impatient] [tired] [whispers] [mischievously] y sonidos [sighs] [groans] "
+                            "[scoffs] [gasps] [exhales] [tsk] [clears throat] [stammers]. "
+                            + ("Como la frase tiene risa, cambiá el jaja por UN [laughs] o [chuckles]. " if tiene_risa else
+                               "NO uses [laughs], [chuckles] ni ninguna risa. ")
+                            + "Ponelas justo antes de la parte que modifican. Si el ánimo es enojado o gritando, poné en "
+                            "MAYÚSCULAS las palabras fuertes. Usá puntos suspensivos para pausas. No cambies ni agregues "
+                            "palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
-                    ], max_tokens=200, temperatura=0.7, tiempo=12)
+                    ], max_tokens=200, temperatura=0.8, tiempo=12)
                     if etiquetado and "[" in etiquetado and len(etiquetado) < 400:
+                        if not tiene_risa:
+                            etiquetado = re.sub(r"\[(laughs[^\]]*|chuckles|giggles)\]\s*", "", etiquetado, flags=re.I)
+                        log.info("Voz con animo %s", animo)
                         return etiquetado.strip().strip('"')
-            # sin IA: reglas simples
+            # sin IA: reglas simples con el ánimo elegido
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
-            inicio = random.choice(["[sarcastic]", "[deadpan]", "[mischievously]", "[curious]", "[excited]", "", ""])
-            final = random.choice(["[chuckles]", "[sighs]", "[laughs]", "", ""])
-            if "?" not in text and random.random() < 0.5:
+            if animo in ("enojado", "gritando", "indignado"):
+                palabras = text.split()
+                if palabras:
+                    k = random.randrange(len(palabras))
+                    palabras[k] = palabras[k].upper()
+                text = " ".join(palabras)
+            if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
-            return " ".join(x for x in (inicio, text, final) if x)
+            return f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
 
         async def voz_eleven(self, text):
             """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla."""
