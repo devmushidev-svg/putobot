@@ -326,11 +326,11 @@ ARGENTINO_VOZ = ("La voz tiene acento argentino, así que adaptá la frase un po
                  "(colectivo), copado / groso / joya (genial), re (muy: 're lindo'), posta (en serio), garpar (pagar), "
                  "bancar (aguantar), morfar (comer), mina / pibe (chica / chico), flaco / flaca (amigo), qué garrón (qué "
                  "mala suerte), ni en pedo (ni loco), al pedo (sin sentido), fiaca (paja, flojera), guita (plata), "
-                 "boh, dale, viste. No uses che, boludo, pavadas ni siesta. No la llenes de jerga.")
-ARGENTINISMOS = ["dale", "posta", "viste", "boh", "flaco", "mirá"]
+                 "boh, dale, viste, che, boludo (con cariño, entre amigos). No uses pavadas ni siesta. No la llenes de jerga.")
+ARGENTINISMOS = ["dale", "posta", "viste", "boh", "flaco", "mirá", "che"]
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
-PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
+PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "tío", "tía"]
 
 def segundos_hasta_reinicio() -> int:
     """Segundos hasta la medianoche del Pacífico (cuando Google reinicia la cuota diaria gratis)."""
