@@ -360,7 +360,6 @@ OBSESIONES = [
 ]
 APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "después te cuento", "ya les dije que no",
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
-BOT_ADIVINA_CHANCE = 0.18   # de cada 100 partidas de adivina, en 18 el bot "juega" y acierta
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
 RAREZA_MAX_DIA = 2          # máximo de rarezas por día
@@ -2958,11 +2957,9 @@ def create_client(config):
                 f"respondan con el @ o el nombre (uno solo, 3 intentos c/u). tienen 30 segundos",
                 allowed_mentions=discord.AllowedMentions.none())
             juego["tarea"] = asyncio.create_task(self.reloj_juego(message.channel, juego))
-            if random.random() < BOT_ADIVINA_CHANCE:
-                juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(message.channel, juego))
 
         async def bot_adivina(self, channel, juego):
-            # a veces el bot "juega" solo: se mete a mitad de partida y siempre acierta (sin sumar puntos)
+            # el bot adivina su propia partida: siempre acierta (sin sumar puntos), a menos que alguien le gane
             await asyncio.sleep(random.uniform(6, 26))
             if self.juegos.get(channel.id) is not juego:
                 return
@@ -3688,7 +3685,7 @@ def create_client(config):
             if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
                 chance, opciones = 0.10, [("noche", 4), ("susurro", 3)]
             elif 7 <= ahora.hour < 23:
-                chance, opciones = 0.025, [("viejo", 3), ("cuentas", 2), ("susurro", 1)]
+                chance, opciones = 0.025, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
                 if ahora.hour < 11 and self.sueno_dia != ahora.date():
                     opciones.append(("sueno", 5))  # el sueño se cuenta en la mañana
             else:
@@ -3715,6 +3712,19 @@ def create_client(config):
                         {"role": "user", "content": instruccion}],
                         max_palabras=max_palabras, max_caracteres=max_palabras * 9, max_tokens=90, temperatura=0.95)
             return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
+
+        async def rareza_adivina(self, canal):
+            # escribe "!puto adivina" solo, arranca la partida y la adivina él mismo (si nadie le gana)
+            try:
+                m = await canal.send("!puto adivina")
+            except discord.HTTPException:
+                return False
+            await asyncio.sleep(2)
+            await self.empezar_juego(m)
+            juego = self.juegos.get(canal.id)
+            if juego is not None and "autor" in juego:
+                juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
+            return True
 
         async def rareza_noche(self, canal):
             # habla solo de madrugada (no borra el mensaje después)
