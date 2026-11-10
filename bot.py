@@ -364,7 +364,7 @@ VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en v
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
 RAREZA_MAX_DIA = 4          # máximo de rarezas por día
 RAREZA_ESPERA = 2 * 3600    # mínimo entre una rareza y otra
-ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (de 7 am a 11 pm)
+ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (a cualquier hora)
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "tío", "tía"]
@@ -3685,7 +3685,7 @@ def create_client(config):
             ahora = datetime.now(HN)
             if self.rareza_dia[0] != ahora.date():
                 self.rareza_dia = (ahora.date(), 0)
-            if 7 <= ahora.hour < 23 and time.time() - self.ultimo_adivina >= ADIVINA_CADA:
+            if time.time() - self.ultimo_adivina >= ADIVINA_CADA:
                 # pasaron 8 horas sin su adivina: lo arranca sí o sí (no cuenta para el máximo del día)
                 if await self.rareza_adivina(canal):
                     log.info("Rareza: adivina (pasaron 8 horas)")
