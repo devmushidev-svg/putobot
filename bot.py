@@ -4051,13 +4051,19 @@ def create_client(config):
                 juego = parts[2] if len(parts) > 2 else ""
                 juego = {"quienlodijo": "adivina", "qld": "adivina"}.get(juego, juego)
                 if juego in RANKINGS:
-                    filas = await self.worker.call("ranking", guild.id, juego)
+                    todas = await self.worker.call("ranking", guild.id, juego, 1000)
+                    filas = todas[:10]
                     if not filas:
                         await self.send_text(message, f"nadie ha ganado en {juego} todavia, que sorpresa")
                     else:
                         lineas = [RANKINGS[juego]]
                         for i, (uid, pts) in enumerate(filas, 1):
                             lineas.append(f"{i}. {'👑 ' if pts >= META_PUNTOS else ''}{await self.name_of(guild, uid)} - {pts} punto" + ("s" if pts != 1 else ""))
+                        # si el bot juega pero quedó fuera del top 10, igual sale con su puesto real
+                        puesto = next((i for i, (u, _) in enumerate(todas, 1) if u == self.user.id), None)
+                        if puesto and puesto > 10:
+                            pts = todas[puesto - 1][1]
+                            lineas.append(f"...\n{puesto}. {await self.name_of(guild, self.user.id)} - {pts} punto" + ("s" if pts != 1 else ""))
                         await self.send_text(message, "\n".join(lineas))
                 else:
                     lineas = []
