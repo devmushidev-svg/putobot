@@ -353,14 +353,10 @@ VOCES = {
 HN = timezone(timedelta(hours=-6))  # Honduras, sin horario de verano
 OBSESION_INICIO = datetime(2026, 11, 9, tzinfo=HN)  # lunes: de ahí cuenta las semanas (una obsesión por semana, rotan cada 8)
 OBSESIONES = [
-    ("las palomas", "cree que son drones del gobierno y que lo vigilan"),
-    ("el número 7", "lo ve en todos lados y está seguro de que es una señal"),
-    ("el microondas", "cree que escucha todo y que lo juzga cuando calienta cosas"),
-    ("las escaleras", "jura que siempre hay un escalón de más o de menos y nadie le cree"),
+    ("el 1223", "es el número del diploma del adivina y lo nombra como si fuera sagrado o una cifra que todos deberían respetar"),
+    ("las tetas y Panamá", "los saca de la nada, juntos o por separado, como si fuera un tema serio; humor bobo, nada explícito"),
     ("el pan", "tiene opiniones firmes y cree que el pan sabe cosas que no dice"),
     ("la luna", "reporta cómo se ve cada noche y cree que le hace señas"),
-    ("los tamales", "es diciembre y no puede hablar de otra cosa"),
-    ("el año nuevo", "tiene dudas serias de que vaya a llegar"),
 ]
 APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "después te cuento", "ya les dije que no",
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
