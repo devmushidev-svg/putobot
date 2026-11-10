@@ -3270,7 +3270,18 @@ def create_client(config):
         def clave_eleven(self):
             return self._leer_clave("ELEVENLABS_API_KEY", "elevenlabs_key")
 
-        async def etiquetar_voz(self, text):
+        @staticmethod
+        def pide_grito(contexto):
+            """True si el mensaje que le hicieron trae un insulto o le piden insultar a alguien."""
+            if not contexto:
+                return False
+            t = unicodedata.normalize("NFKD", contexto.casefold()).encode("ascii", "ignore").decode()
+            t = re.sub(r"!?\bputo\b", " ", t)  # "puto" es el nombre del bot, no cuenta
+            return bool(INSULTO_RE.search(t) or re.search(
+                r"\b(insult\w*|pute[ae]\w*|ofend\w*|humill\w*|roaste\w*|bardea\w*|decile\w* (algo )?feo|"
+                r"mierda|verga|vergazo|culer[oa]s?|marica|cabron\w*|hdp|ctm|alv|chinga\w*)\b", t))
+
+        async def etiquetar_voz(self, text, contexto=""):
             """Le pone etiquetas de ElevenLabs para que suene natural y con emoción. Cada frase sale con un ánimo
             distinto al azar (enojado, gritando, harto, sarcástico...) para que no se ría siempre."""
             text = re.sub(r"https?://\S+|<[@#:!&a-zA-Z0-9_]+>", "", text or "").strip()[:200]
@@ -3286,13 +3297,13 @@ def create_client(config):
                 ("nervioso", "[nervous]", "[stammers]"), ("susurrando", "[whispers]", "[mischievously]"),
                 ("confundido", "[confused]", "[hmm]"), ("impaciente", "[impatient]", "[sighs]"),
             ]
-            # la mitad de las veces grita o está enojado (es lo que más gracia da)
-            if random.random() < 0.5:
+            # grita SOLO si lo insultaron o le pidieron insultar; si no, un ánimo al azar sin gritos
+            grita = self.pide_grito(contexto)
+            if grita:
                 animo, t1, t2 = random.choice([("gritando", "[shouting]", "[yelling]"), ("enojado", "[angry]", "[shouting]"),
                                                ("furioso", "[furious]", "[yelling]")])
             else:
-                animo, t1, t2 = random.choice(animos)
-            grita = animo in ("gritando", "enojado", "furioso", "indignado", "emocionado")
+                animo, t1, t2 = random.choice([a for a in animos if a[0] not in ("enojado", "gritando", "indignado")])
             tiene_risa = bool(re.search(r"\bj[aeijs]{2,}|\bxd", text, re.I))
             if self.proveedores_ia():
                 with suppress(Exception):
@@ -3309,7 +3320,8 @@ def create_client(config):
                             + "Ponelas justo antes de la parte que modifican. "
                             + ("TIENE QUE GRITAR DE VERDAD: empezá con [shouting] o [yelling], repetí una etiqueta de grito "
                                "a la mitad, poné casi toda la frase en MAYÚSCULAS y terminá con signos de exclamación (!!). "
-                               if grita else "Usá MAYÚSCULAS en alguna palabra para dar énfasis. ")
+                               if grita else "NO grites: nada de [shouting] ni [yelling] ni frases en mayúsculas; "
+                               "como mucho una palabra en MAYÚSCULAS para dar énfasis. ")
                             + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. No cambies ni "
                             "agregues palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
@@ -3319,6 +3331,8 @@ def create_client(config):
                             etiquetado = re.sub(r"\[(laughs[^\]]*|chuckles|giggles)\]\s*", "", etiquetado, flags=re.I)
                         if grita:
                             etiquetado = self.forzar_grito(etiquetado, t1)
+                        else:
+                            etiquetado = re.sub(r"\[(shouting|yelling|furious|angry|screams?)\]\s*", "", etiquetado, flags=re.I)
                         log.info("Voz con animo %s: %s", animo, etiquetado[:150])
                         return etiquetado.strip().strip('"')
             # sin IA: reglas simples con el ánimo elegido
@@ -3341,7 +3355,7 @@ def create_client(config):
                 t += "!!"
             return t
 
-        async def voz_eleven(self, text):
+        async def voz_eleven(self, text, contexto=""):
             """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla."""
             clave = self.clave_eleven()
             if not clave or not text:
@@ -3349,10 +3363,10 @@ def create_client(config):
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40))
-            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "zJtOCbdQjTZt7YZtkRDP"  # la que eligió Mario (si falla por el plan, usa la de respaldo)
+            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "ZuuXsIgssLuaZ8Slz3yX"  # la que eligió Mario (si falla por el plan, usa la de respaldo)
             elegido = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model")
             modelos = [elegido] if elegido else ["eleven_v4", "eleven_v3", "eleven_multilingual_v2"]
-            etiquetado = await self.etiquetar_voz(text)
+            etiquetado = await self.etiquetar_voz(text, contexto)
             voz_respaldo = self._leer_clave("ELEVENLABS_VOICE_FALLBACK", "elevenlabs_voice_fallback") or "JBFqnCBsd6RMkjVDRZzb"
             intentos = [(m, voz) for m in modelos] + [(m, voz_respaldo) for m in modelos if voz_respaldo != voz]
             voces_bloqueadas = set()
@@ -3382,9 +3396,9 @@ def create_client(config):
                     log.exception("Fallo ElevenLabs (%s)", modelo)
             return None
 
-        async def mandar_audio(self, channel, text):
+        async def mandar_audio(self, channel, text, contexto=""):
             """Manda una nota de voz (la burbuja con la onda). Si Discord no la acepta, manda el mp3 normal."""
-            mp3 = await self.voz_eleven(text)
+            mp3 = await self.voz_eleven(text, contexto)
             if not mp3:
                 return False
             try:
@@ -3577,7 +3591,7 @@ def create_client(config):
                         if self.clave_groq():
                             respuesta = await self.ia_pregunta(message, pregunta[:500])
                         respuesta = respuesta or await self.worker.call("reply", guild.id, SHARED, pregunta) or "no sé"
-                        enviado = await self.mandar_audio(message.channel, respuesta) if self.clave_eleven() else False
+                        enviado = await self.mandar_audio(message.channel, respuesta, pregunta) if self.clave_eleven() else False
                     if not enviado:
                         await self.send_text(message, respuesta)  # sin ElevenLabs o sin créditos: en texto
             elif action == "imita":
@@ -3931,7 +3945,7 @@ def create_client(config):
                     if frase:
                         self.ultimo_audio[cid] = time.monotonic()
                         await self.worker.call("learn", mid, guild.id, cid, uid, text, revision)
-                        await self.mandar_audio(message.channel, frase)
+                        await self.mandar_audio(message.channel, frase, message.content)
                         return
                 # Cada 12-18 mensajes le habla directo a quien escribió.
                 cid = message.channel.id
