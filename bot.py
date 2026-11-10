@@ -362,8 +362,8 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
-RAREZA_MAX_DIA = 4          # máximo de rarezas por día
-RAREZA_ESPERA = 2 * 3600    # mínimo entre una rareza y otra
+RAREZA_MAX_DIA = 8          # máximo de rarezas por día
+RAREZA_ESPERA = 1 * 3600    # mínimo entre una rareza y otra
 ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (a cualquier hora)
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
@@ -3694,9 +3694,9 @@ def create_client(config):
             if self.rareza_dia[1] >= RAREZA_MAX_DIA or time.monotonic() - self.rareza_ultima < RAREZA_ESPERA:
                 return
             if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
-                chance, opciones = 0.10, [("noche", 4), ("susurro", 3)]
+                chance, opciones = 0.15, [("noche", 4), ("susurro", 3)]
             elif 7 <= ahora.hour < 23:
-                chance, opciones = 0.06, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
+                chance, opciones = 0.14, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
                 if ahora.hour < 11 and self.sueno_dia != ahora.date():
                     opciones.append(("sueno", 5))  # el sueño se cuenta en la mañana
             else:
