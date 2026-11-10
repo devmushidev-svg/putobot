@@ -2958,6 +2958,11 @@ def create_client(config):
             if not r or autor is None:
                 await self.send_text(message, "no encontre nada bueno, hablen mas")
                 return
+            await self.lanzar_adivina(message, autor, text, self.hace_cuanto(mid))
+
+        async def lanzar_adivina(self, message, autor, text, cuando):
+            """Arma y publica una partida de adivina con ese autor y ese texto; devuelve la partida."""
+            guild, cid = message.guild, message.channel.id
             nombres = {self._plano(x) for x in (autor.display_name, autor.name, getattr(autor, "global_name", None) or "") if x}
             if autor.id in self.exmiembros_ok:
                 nombres |= {self._plano(n) for n in EXMIEMBROS_ADIVINA}  # que acepte "enojaste" aunque su usuario sea otro
@@ -2965,10 +2970,11 @@ def create_client(config):
             self.recordar_nombres(guild.id, autor)
             self.juegos[cid] = juego
             await message.channel.send(
-                f"**quien dijo esto?** ({self.hace_cuanto(mid)})\n> {text}\n"
+                f"**quien dijo esto?** ({cuando})\n> {text}\n"
                 f"respondan con el @ o el nombre (uno solo, 3 intentos c/u). tienen 30 segundos",
                 allowed_mentions=discord.AllowedMentions.none())
             juego["tarea"] = asyncio.create_task(self.reloj_juego(message.channel, juego))
+            return juego
 
         async def bot_adivina(self, channel, juego):
             # el bot adivina su propia partida: siempre acierta (sin sumar puntos), a menos que alguien le gane
@@ -3750,22 +3756,30 @@ def create_client(config):
             return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
 
         async def rareza_adivina(self, canal):
-            # primero suelta un mensaje normal de los suyos (para que se vea creíble), después escribe "!puto adivina",
-            # arranca la partida y la adivina él mismo (si nadie le gana)
-            intro = None
-            if random.random() < 0.5:  # a veces una frase suelta de su cerebro (tipo "jere sos el tipo de persona")
-                with suppress(Exception):
-                    intro = await self.worker.call("reply", canal.guild.id, SHARED, "")
-            if not intro:
-                intro = await self.frase_rara(
-                    canal, "Soltá un comentario corto y casual, como uno más del grupo que acaba de leer el chat. "
-                           "Nada de juegos ni de comandos. Solo el mensaje.", 12)
+            # escribe "!puto adivina" solo y lanza una partida armada por él: la frase empieza con el nombre de alguien
+            # (tipo "jere sos el tipo de persona que...") y esa persona es la respuesta; él la adivina al instante
+            guild = canal.guild
+            autor = None
+            for _ in range(6):
+                r = await self.worker.call("memory", guild.id)
+                if not r:
+                    break
+                cand = await self.miembro_o_exmiembro(guild, r[1])
+                if cand is not None and not cand.bot:
+                    autor = cand
+                    break
+            if autor is None:
+                return False
+            nombre = autor.display_name
+            texto = await self.frase_rara(
+                canal, f"Escribí una frase corta que le habla directo a {nombre}, empezando con su nombre, como "
+                       f"\"{nombre} sos el tipo de persona que...\". Que suene a algo que diría alguien del grupo. "
+                       "Solo la frase.", 14)
+            if not texto:
+                return False
+            if not texto.lower().startswith(nombre.lower()):
+                texto = f"{nombre} {texto}"
             try:
-                if intro:
-                    async with canal.typing():
-                        await asyncio.sleep(random.uniform(2, 4))
-                    await canal.send(intro, allowed_mentions=discord.AllowedMentions.none())
-                    await asyncio.sleep(random.uniform(4, 9))
                 async with canal.typing():
                     await asyncio.sleep(random.uniform(1, 2))
                 m = await canal.send("!puto adivina")
@@ -3775,10 +3789,10 @@ def create_client(config):
             with suppress(OSError), open(self.ruta_bot("ultimo_adivina"), "w") as fh:
                 fh.write(str(self.ultimo_adivina))
             await asyncio.sleep(2)
-            await self.empezar_juego(m)
-            juego = self.juegos.get(canal.id)
-            if juego is not None and "autor" in juego:
-                juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
+            if canal.id in self.juegos:
+                return True
+            juego = await self.lanzar_adivina(m, autor, texto, f"hace {random.choice([3, 5, 8, 12, 19, 27])} dias")
+            juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
             return True
 
         async def rareza_noche(self, canal):
