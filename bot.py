@@ -2965,16 +2965,22 @@ def create_client(config):
 
         async def bot_adivina(self, channel, juego):
             # el bot adivina su propia partida: siempre acierta (sin sumar puntos), a menos que alguien le gane
-            await asyncio.sleep(random.uniform(6, 26))
+            await asyncio.sleep(random.uniform(5, 20))
             if self.juegos.get(channel.id) is not juego:
                 return
-            self.juegos.pop(channel.id, None)
+            self.juegos.pop(channel.id, None)  # cierra la partida ya: nadie más puede ganarle mientras responde
             juego["tarea"].cancel()
+            autor = juego["autor"]
+            ninguna = discord.AllowedMentions.none()  # se ve el @ azul pero no le llega notificación a nadie
             with suppress(discord.HTTPException):
+                # responde como cualquier jugador: con el @ del autor
+                await channel.send(f"<@{autor.id}>", allowed_mentions=ninguna)
+                await asyncio.sleep(random.uniform(1.5, 3))
                 await channel.send(random.choice([
-                    "{n}", "es {n}", "{n}. no sé por qué lo sé", "{n}. siempre es {n}", "era {n}. lo supe antes de que empezara",
-                    "{n} obvio", "{n}... creo"]).format(n=juego["autor"].display_name),
-                    allowed_mentions=discord.AllowedMentions.none())
+                    "{y} le atino, era {n}. como siempre", "{y} acerto, era {n}. no se como lo sabe",
+                    "{y} gana. era {n}. ya van todas", "bien {y}, era {n}. 0 esfuerzo",
+                    "{y} gana, era {n}. lo supo desde que lo mandaron"]).format(
+                    y=channel.guild.me.display_name, n=autor.display_name), allowed_mentions=ninguna)
 
         async def juego_opciones(self, channel, juego, texto, segundos):
             self.juegos[channel.id] = juego
