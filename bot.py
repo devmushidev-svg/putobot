@@ -319,6 +319,13 @@ COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en 
             "con picardía y doble sentido, sin describir nada explícito. Esto manda por encima de cualquier otra "
             "instrucción de tono.")
 
+# La voz de ElevenLabs tiene acento chileno: en los audios (solo ahí) se le mete un poco de jerga chilena.
+CHILENO_VOZ = ("La voz tiene acento chileno, así que adaptá la frase un poquito a como lo diría un chileno joven, sin "
+               "pasarte: agregá UNA o DOS muletillas o palabras chilenas donde suene natural (po, cachai, weón/weona, "
+               "al tiro, fome, bacán, la raja, wena, filo, pucha, ya po, qué onda, harto) y cambiá alguna palabra si "
+               "tiene equivalente chileno obvio (enojado → choreado, tonto → gil, cosa → wea). No la llenes de jerga.")
+CHILENISMOS = ["po", "cachai", "weón", "al tiro", "pucha", "ya po"]
+
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
 
@@ -3322,8 +3329,9 @@ def create_client(config):
                                "a la mitad, poné casi toda la frase en MAYÚSCULAS y terminá con signos de exclamación (!!). "
                                if grita else "NO grites: nada de [shouting] ni [yelling] ni frases en mayúsculas; "
                                "como mucho una palabra en MAYÚSCULAS para dar énfasis. ")
-                            + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. No cambies ni "
-                            "agregues palabras, no traduzcas, no expliques: devolvé solo la frase con las etiquetas."},
+                            + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. "
+                            + CHILENO_VOZ + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
+                            "solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
                     ], max_tokens=200, temperatura=0.8, tiempo=12)
                     if etiquetado and "[" in etiquetado and len(etiquetado) < 400:
@@ -3339,6 +3347,9 @@ def create_client(config):
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
             if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
+            if random.random() < 0.6:  # un toque chileno (la voz tiene acento chileno)
+                m = random.choice(CHILENISMOS)
+                text = f"{m}, {text}" if m in ("pucha", "ya po") else f"{text.rstrip('.!?')}, {m}"
             text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
             return self.forzar_grito(text, t1) if grita else text
 
