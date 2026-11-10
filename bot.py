@@ -1909,9 +1909,16 @@ def create_client(config):
             self.aviso_apagado = {}
             self.voces_bloqueadas = set()  # voces de la biblioteca que el plan gratis no deja usar (se reintentan al reiniciar)
             self.pendientes = set()        # canales con una respuesta "en visto" esperando
-            self.rareza_dia = (None, 0)    # (día, cuántas rarezas van hoy)
-            self.rareza_ultima = -1e9
-            self.sueno_dia = None
+            # estado de las rarezas (día, cuántas van hoy, cuándo fue la última, día del último sueño): se guarda en un
+            # archivo para que reiniciar el bot (cada actualización) no reinicie los topes del día
+            self.rareza_dia, self.rareza_ultima, self.sueno_dia = (None, 0), 0.0, None
+            with suppress(OSError, ValueError, TypeError, AttributeError), open(self.ruta_bot("rarezas_estado")) as fh:
+                est = json.load(fh)
+                if est.get("dia"):
+                    self.rareza_dia = (datetime.fromisoformat(est["dia"]).date(), int(est.get("n", 0)))
+                self.rareza_ultima = float(est.get("ultima", 0))
+                if est.get("sueno"):
+                    self.sueno_dia = datetime.fromisoformat(est["sueno"]).date()
             # cuándo fue su último adivina solo (se guarda en un archivo para que no se pierda al reiniciar)
             self.ultimo_adivina = time.time()
             with suppress(OSError, ValueError), open(self.ruta_bot("ultimo_adivina")) as fh:
@@ -3686,6 +3693,12 @@ def create_client(config):
                     log.exception("Fallo una rareza")
                 await asyncio.sleep(random.uniform(600, 1500))
 
+        def guardar_rarezas(self):
+            with suppress(OSError), open(self.ruta_bot("rarezas_estado"), "w") as fh:
+                json.dump({"dia": self.rareza_dia[0].isoformat() if self.rareza_dia[0] else None,
+                           "n": self.rareza_dia[1], "ultima": self.rareza_ultima,
+                           "sueno": self.sueno_dia.isoformat() if self.sueno_dia else None}, fh)
+
         async def rareza_tick(self):
             if self.dormido or self.stopping:
                 return
@@ -3699,9 +3712,10 @@ def create_client(config):
                 # pasaron 8 horas sin su adivina: lo arranca sí o sí (no cuenta para el máximo del día)
                 if await self.rareza_adivina(canal):
                     log.info("Rareza: adivina (pasaron 8 horas)")
-                    self.rareza_ultima = time.monotonic()
+                    self.rareza_ultima = time.time()
+                    self.guardar_rarezas()
                 return
-            if self.rareza_dia[1] >= RAREZA_MAX_DIA or time.monotonic() - self.rareza_ultima < RAREZA_ESPERA:
+            if self.rareza_dia[1] >= RAREZA_MAX_DIA or time.time() - self.rareza_ultima < RAREZA_ESPERA:
                 return
             if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
                 chance, opciones = 0.15, [("noche", 4), ("susurro", 3)]
@@ -3716,10 +3730,11 @@ def create_client(config):
             nombre = random.choices([o for o, _ in opciones], [w for _, w in opciones])[0]
             if await getattr(self, "rareza_" + nombre)(canal):
                 log.info("Rareza: %s", nombre)
-                self.rareza_ultima = time.monotonic()
+                self.rareza_ultima = time.time()
                 self.rareza_dia = (ahora.date(), self.rareza_dia[1] + 1)
                 if nombre == "sueno":
                     self.sueno_dia = ahora.date()
+                self.guardar_rarezas()
 
         async def frase_rara(self, canal, instruccion, max_palabras=18):
             """Una frase corta de la IA con el lore y la obsesión de la semana; si la IA falla, una del cerebro."""
