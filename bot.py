@@ -2972,15 +2972,19 @@ def create_client(config):
             juego["tarea"].cancel()
             autor = juego["autor"]
             ninguna = discord.AllowedMentions.none()  # se ve el @ azul pero no le llega notificación a nadie
+            try:  # suma el punto como cualquier jugador (queda en el ranking con su contador)
+                puntos = await self.worker.call("add_point", channel.guild.id, self.user.id, "adivina")
+            except Exception:
+                log.exception("No pude sumarle el punto al bot")
+                puntos = "?"
             with suppress(discord.HTTPException):
                 # responde como cualquier jugador: con el @ del autor
                 await channel.send(f"<@{autor.id}>", allowed_mentions=ninguna)
                 await asyncio.sleep(random.uniform(1.5, 3))
                 await channel.send(random.choice([
-                    "{y} le atino, era {n}. como siempre", "{y} acerto, era {n}. no se como lo sabe",
-                    "{y} gana. era {n}. ya van todas", "bien {y}, era {n}. 0 esfuerzo",
-                    "{y} gana, era {n}. lo supo desde que lo mandaron"]).format(
-                    y=channel.guild.me.display_name, n=autor.display_name), allowed_mentions=ninguna)
+                    "{g} le atino, era {n}. lleva {p} puntos", "{g} acerto, sabe demasiado de {n}... sospechoso. {p} puntos",
+                    "bien {g}, era {n}. {p} puntos y 0 vida social", "{g} gana. era {n}. ya van {p}"]).format(
+                    g=channel.guild.me.display_name, n=autor.display_name, p=puntos), allowed_mentions=ninguna)
 
         async def juego_opciones(self, channel, juego, texto, segundos):
             self.juegos[channel.id] = juego
