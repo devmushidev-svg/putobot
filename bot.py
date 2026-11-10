@@ -3714,7 +3714,15 @@ def create_client(config):
             try:
                 async with canal.typing():
                     await asyncio.sleep(random.uniform(1, 4))
-                await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+                m = await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+                if random.random() < 0.35:
+                    # a veces se responde a sí mismo, una sola vez, como si se contestara solo
+                    await asyncio.sleep(random.uniform(15, 75))
+                    otro = await self.worker.call("reply", canal.guild.id, SHARED, texto)
+                    if otro and canal.id not in self.juegos and not self.dormido:
+                        async with canal.typing():
+                            await asyncio.sleep(random.uniform(1, 3))
+                        await m.reply(otro, mention_author=False)
             except discord.HTTPException:
                 pass
 
