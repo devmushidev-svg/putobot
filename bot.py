@@ -365,7 +365,8 @@ APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "algui
 HABLA_SOLO_CADA = (15 * 60, 45 * 60)  # habla solo, aunque nadie escriba: cada 15 a 45 min al azar (unas 2 veces por hora)
 RAREZA_MAX_DIA = 8          # máximo de rarezas por día
 RAREZA_ESPERA = 1 * 3600    # mínimo entre una rareza y otra
-ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (a cualquier hora)
+ADIVINA_CADA = 72 * 3600    # el bot arranca su propio adivina una vez cada 3 días (a cualquier hora)
+BOT_ACIERTA_CHANCE = 0.05   # y solo en 1 de cada 20 de sus partidas la adivina él mismo; en las demás juegan los demás
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "tío", "tía"]
@@ -3758,9 +3759,9 @@ def create_client(config):
             if self.rareza_dia[0] != ahora.date():
                 self.rareza_dia = (ahora.date(), 0)
             if time.time() - self.ultimo_adivina >= ADIVINA_CADA:
-                # pasaron 8 horas sin su adivina: lo arranca sí o sí (no cuenta para el máximo del día)
+                # pasaron 3 días sin su adivina: lo arranca (no cuenta para el máximo del día)
                 if await self.rareza_adivina(canal):
-                    log.info("Rareza: adivina (pasaron 8 horas)")
+                    log.info("Rareza: adivina (pasaron 3 dias)")
                     self.rareza_ultima = time.time()
                     self.guardar_rarezas()
                 return
@@ -3813,7 +3814,7 @@ def create_client(config):
             await asyncio.sleep(2)
             await self.empezar_juego(m)
             juego = self.juegos.get(canal.id)
-            if juego is not None and "autor" in juego:
+            if juego is not None and "autor" in juego and random.random() < BOT_ACIERTA_CHANCE:
                 juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
             return True
 
