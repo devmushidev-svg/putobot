@@ -2991,8 +2991,14 @@ def create_client(config):
                 log.exception("No pude sumarle el punto al bot")
                 puntos = "?"
             with suppress(discord.HTTPException):
-                # responde como cualquier jugador: con el @ del autor
-                await channel.send(f"<@{autor.id}>", allowed_mentions=ninguna)
+                # contesta con uno de sus mensajes armados que lleva el nombre de la respuesta
+                # ("jere sos el tipo de persona que dice ..."): el nombre es lo que cuenta como acierto
+                relleno = ""
+                with suppress(Exception):
+                    relleno = await self.worker.call("reply", channel.guild.id, SHARED, "") or ""
+                nombre = autor.display_name
+                respuesta = random.choice(DIRECTOS).format(n=nombre, x=relleno) if relleno else nombre
+                await channel.send(" ".join(respuesta.split()), allowed_mentions=ninguna)
                 await asyncio.sleep(random.uniform(0.8, 1.5))
                 await channel.send(random.choice([
                     "{g} le atino, era {n}. lleva {p} puntos", "{g} acerto, sabe demasiado de {n}... sospechoso. {p} puntos",
@@ -3756,28 +3762,8 @@ def create_client(config):
             return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
 
         async def rareza_adivina(self, canal):
-            # escribe "!puto adivina" solo y lanza una partida armada por él: el mensaje lo genera su cerebro (frases random
-            # del server) y la respuesta es la persona elegida; él la adivina al instante
-            guild = canal.guild
-            autor = None
-            for _ in range(6):
-                r = await self.worker.call("memory", guild.id)
-                if not r:
-                    break
-                cand = await self.miembro_o_exmiembro(guild, r[1])
-                if cand is not None and not cand.bot:
-                    autor = cand
-                    break
-            if autor is None:
-                return False
-            # el mensaje es de los que el bot arma solo con frases random del server (el mismo cerebro con el que habla por
-            # el chat): a veces con una plantilla con el nombre ("jere sos el tipo de persona que dice ..."), a veces el
-            # mensaje normal suelto
-            relleno = await self.worker.call("reply", guild.id, SHARED, "")
-            if not relleno:
-                return False
-            texto = random.choice(DIRECTOS).format(n=autor.display_name, x=relleno) if random.random() < 0.5 else relleno
-            texto = " ".join(texto.split())  # una sola línea, para que no rompa la cita
+            # escribe "!puto adivina" solo: sale una partida normal (mensaje real viejo del server) y él la contesta al
+            # instante con uno de sus mensajes armados con el nombre de la respuesta (ver bot_adivina)
             try:
                 async with canal.typing():
                     await asyncio.sleep(random.uniform(1, 2))
@@ -3788,10 +3774,10 @@ def create_client(config):
             with suppress(OSError), open(self.ruta_bot("ultimo_adivina"), "w") as fh:
                 fh.write(str(self.ultimo_adivina))
             await asyncio.sleep(2)
-            if canal.id in self.juegos:
-                return True
-            juego = await self.lanzar_adivina(m, autor, texto, None)  # sin fecha: no hay un mensaje real al que ponerle edad
-            juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
+            await self.empezar_juego(m)
+            juego = self.juegos.get(canal.id)
+            if juego is not None and "autor" in juego:
+                juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
             return True
 
         async def rareza_noche(self, canal):
