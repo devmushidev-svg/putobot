@@ -3750,8 +3750,24 @@ def create_client(config):
             return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
 
         async def rareza_adivina(self, canal):
-            # escribe "!puto adivina" solo, arranca la partida y la adivina él mismo (si nadie le gana)
+            # primero suelta un mensaje normal de los suyos (para que se vea creíble), después escribe "!puto adivina",
+            # arranca la partida y la adivina él mismo (si nadie le gana)
+            intro = None
+            if random.random() < 0.5:  # a veces una frase suelta de su cerebro (tipo "jere sos el tipo de persona")
+                with suppress(Exception):
+                    intro = await self.worker.call("reply", canal.guild.id, SHARED, "")
+            if not intro:
+                intro = await self.frase_rara(
+                    canal, "Soltá un comentario corto y casual, como uno más del grupo que acaba de leer el chat. "
+                           "Nada de juegos ni de comandos. Solo el mensaje.", 12)
             try:
+                if intro:
+                    async with canal.typing():
+                        await asyncio.sleep(random.uniform(2, 4))
+                    await canal.send(intro, allowed_mentions=discord.AllowedMentions.none())
+                    await asyncio.sleep(random.uniform(4, 9))
+                async with canal.typing():
+                    await asyncio.sleep(random.uniform(1, 2))
                 m = await canal.send("!puto adivina")
             except discord.HTTPException:
                 return False
