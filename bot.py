@@ -321,10 +321,13 @@ COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en 
 
 # La voz de ElevenLabs tiene acento chileno: en los audios (solo ahí) se le mete un poco de jerga chilena.
 CHILENO_VOZ = ("La voz tiene acento chileno, así que adaptá la frase un poquito a como lo diría un chileno joven, sin "
-               "pasarte: agregá UNA o DOS muletillas o palabras chilenas donde suene natural (po, cachai, weón/weona, "
-               "al tiro, fome, bacán, la raja, wena, filo, pucha, ya po, qué onda, harto) y cambiá alguna palabra si "
-               "tiene equivalente chileno obvio (enojado → choreado, tonto → gil, cosa → wea). No la llenes de jerga.")
-CHILENISMOS = ["po", "cachai", "weón", "al tiro", "pucha", "ya po"]
+               "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas chilenas donde suene natural. "
+               "Muletillas: po (sí po, ya po, no po), cachai, weón/weona, wena, pucha, oye. Verbos con la terminación "
+               "chilena (-ai / -ís): estai, sabís, querís, hablai, erís. Palabras: al tiro / al toque (ya mismo), fome "
+               "(aburrido), bacán / la raja (genial), harto (mucho), filo (da igual), cuático (exagerado), flaite "
+               "(corriente), cuico (pituco), gil (tonto), choreado (enojado), chato (harto, cansado), achacado (bajoneado), "
+               "carrete (fiesta), caña (resaca), pega (trabajo), gallo/galla (tipo/tipa), wea (cosa). No la llenes de jerga.")
+CHILENISMOS = ["po", "cachai", "weón", "al tiro", "pucha", "ya po", "oye", "wena"]
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
@@ -3349,7 +3352,7 @@ def create_client(config):
                 text = re.sub(r",\s*", "... ", text, count=1)
             if random.random() < 0.6:  # un toque chileno (la voz tiene acento chileno)
                 m = random.choice(CHILENISMOS)
-                text = f"{m}, {text}" if m in ("pucha", "ya po") else f"{text.rstrip('.!?')}, {m}"
+                text = f"{m}, {text}" if m in ("pucha", "ya po", "oye", "wena") else f"{text.rstrip('.!?')}, {m}"
             text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
             return self.forzar_grito(text, t1) if grita else text
 
