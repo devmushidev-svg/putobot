@@ -3756,8 +3756,8 @@ def create_client(config):
             return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
 
         async def rareza_adivina(self, canal):
-            # escribe "!puto adivina" solo y lanza una partida armada por él: la frase empieza con el nombre de alguien
-            # (tipo "jere sos el tipo de persona que...") y esa persona es la respuesta; él la adivina al instante
+            # escribe "!puto adivina" solo y lanza una partida armada por él: el mensaje lo genera su cerebro (frases random
+            # del server) y la respuesta es la persona elegida; él la adivina al instante
             guild = canal.guild
             autor = None
             for _ in range(6):
@@ -3770,15 +3770,14 @@ def create_client(config):
                     break
             if autor is None:
                 return False
-            nombre = autor.display_name
-            texto = await self.frase_rara(
-                canal, f"Escribí una frase corta que le habla directo a {nombre}, empezando con su nombre, como "
-                       f"\"{nombre} sos el tipo de persona que...\". Que suene a algo que diría alguien del grupo. "
-                       "Solo la frase.", 14)
-            if not texto:
+            # el mensaje es de los que el bot arma solo con frases random del server (el mismo cerebro con el que habla por
+            # el chat): a veces con una plantilla con el nombre ("jere sos el tipo de persona que dice ..."), a veces el
+            # mensaje normal suelto
+            relleno = await self.worker.call("reply", guild.id, SHARED, "")
+            if not relleno:
                 return False
-            if not texto.lower().startswith(nombre.lower()):
-                texto = f"{nombre} {texto}"
+            texto = random.choice(DIRECTOS).format(n=autor.display_name, x=relleno) if random.random() < 0.5 else relleno
+            texto = " ".join(texto.split())  # una sola línea, para que no rompa la cita
             try:
                 async with canal.typing():
                     await asyncio.sleep(random.uniform(1, 2))
