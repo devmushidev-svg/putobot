@@ -319,7 +319,7 @@ COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en 
             "con picardía y doble sentido, sin describir nada explícito. Esto manda por encima de cualquier otra "
             "instrucción de tono.")
 
-# La voz de ElevenLabs tiene acento argentino: en los audios (solo ahí) se le mete un poco de jerga argentina.
+# Voces de ElevenLabs: cada audio sale con una de estas tres al azar y con la jerga de su país (solo en los audios).
 ARGENTINO_VOZ = ("La voz tiene acento argentino, así que adaptá la frase un poquito a como lo diría un argentino joven, sin "
                  "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas argentinas donde suene natural. "
                  "Voseo (vos sabés, querés, tenés, mirá, decime, dale). Palabras: laburo (trabajo), quilombo (lío), bondi "
@@ -327,7 +327,48 @@ ARGENTINO_VOZ = ("La voz tiene acento argentino, así que adaptá la frase un po
                  "bancar (aguantar), morfar (comer), mina / pibe (chica / chico), flaco / flaca (amigo), qué garrón (qué "
                  "mala suerte), ni en pedo (ni loco), al pedo (sin sentido), fiaca (paja, flojera), guita (plata), "
                  "boh, dale, viste, che, boludo (con cariño, entre amigos). No uses pavadas ni siesta. No la llenes de jerga.")
-ARGENTINISMOS = ["dale", "posta", "viste", "boh", "flaco", "mirá", "che"]
+CHILENO_VOZ = ("La voz tiene acento chileno, así que adaptá la frase un poquito a como lo diría un chileno joven, sin "
+               "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas chilenas donde suene natural. "
+               "Muletillas: po (sí po, ya po, no po), cachai, weón/weona, wena, pucha, oye. Verbos con la terminación "
+               "chilena (-ai / -ís): estai, sabís, querís, hablai, erís. Palabras: al tiro / al toque (ya mismo), fome "
+               "(aburrido), bacán / la raja (genial), harto (mucho), filo (da igual), cuático (exagerado), flaite "
+               "(corriente), cuico (pituco), gil (tonto), choreado (enojado), chato (harto, cansado), achacado (bajoneado), "
+               "carrete (fiesta), caña (resaca), pega (trabajo), gallo/galla (tipo/tipa), wea (cosa). No la llenes de jerga.")
+COLOMBIANO_VOZ = ("La voz tiene acento colombiano, así que adaptá la frase un poquito a como lo diría un colombiano joven, sin "
+                  "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas colombianas donde suene natural. "
+                  "Tratamiento: parce / parcero, mijo / mija, usted en confianza (\"usted sí es bobo\"). Expresiones: qué más, "
+                  "hágale, de una (claro, ya mismo), no joda, qué pena, qué oso (qué vergüenza), dar papaya (descuidarse), "
+                  "mamar gallo (molestar), pilas (atento), un chorro (mucho). Palabras: bacano / chévere (genial), vaina "
+                  "(cosa), camello (trabajo), plata (dinero), parchar (pasar el rato), rumba (fiesta), guayabo (resaca), "
+                  "berraco / berraca (muy bueno o muy enojado), tinto (café), ñapa (extra). No uses marica ni gonorrea. "
+                  "No la llenes de jerga.")
+# id de la voz → (país, instrucción de jerga, muletillas para abrir la frase, muletillas para cerrarla)
+VOCES = {
+    "p7AwDmKvTdoHTBuueGvP": ("argentina", ARGENTINO_VOZ, ["dale", "boh", "mirá"], ["posta", "viste", "flaco", "che"]),
+    "ZuuXsIgssLuaZ8Slz3yX": ("chilena", CHILENO_VOZ, ["pucha", "ya po", "oye", "wena"], ["po", "cachai", "weón", "al tiro"]),
+    "tTQzD8U9VSnJgfwC6HbY": ("colombiana", COLOMBIANO_VOZ, ["parce", "pues", "uy"], ["parce", "de una", "o qué", "mijo"]),
+}
+
+# Rarezas: cosas raras que el bot hace de vez en cuando, como si fuera uno más del grupo.
+HN = timezone(timedelta(hours=-6))  # Honduras, sin horario de verano
+OBSESION_INICIO = datetime(2026, 11, 9, tzinfo=HN)  # lunes: de ahí cuenta las semanas (una obsesión por semana, rotan cada 8)
+OBSESIONES = [
+    ("las palomas", "cree que son drones del gobierno y que lo vigilan"),
+    ("el número 7", "lo ve en todos lados y está seguro de que es una señal"),
+    ("el microondas", "cree que escucha todo y que lo juzga cuando calienta cosas"),
+    ("las escaleras", "jura que siempre hay un escalón de más o de menos y nadie le cree"),
+    ("el pan", "tiene opiniones firmes y cree que el pan sabe cosas que no dice"),
+    ("la luna", "reporta cómo se ve cada noche y cree que le hace señas"),
+    ("los tamales", "es diciembre y no puede hablar de otra cosa"),
+    ("el año nuevo", "tiene dudas serias de que vaya a llegar"),
+]
+APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "después te cuento", "ya les dije que no",
+           "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
+BOT_ADIVINA_CHANCE = 0.18   # de cada 100 partidas de adivina, en 18 el bot "juega" y acierta
+VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
+APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
+RAREZA_MAX_DIA = 2          # máximo de rarezas por día
+RAREZA_ESPERA = 4 * 3600    # mínimo entre una rareza y otra
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "tío", "tía"]
@@ -1354,6 +1395,21 @@ class Brain:
         row = self.db.execute(q, (gid, limite)).fetchone() or self.db.execute(q, (gid, 2**63 - 1)).fetchone()
         return (row[0], row[1], render(json.loads(row[2]))) if row else None
 
+    def cuentas_semana(self, gid, dias=7, minimo=8):
+        """La palabra que más repitió una misma persona en los últimos días: (autor, palabra, veces) o None."""
+        limite = int((time.time() - dias * 86400) * 1000 - 1420070400000) << 22
+        cuenta = Counter()
+        for uid, raw in self.db.execute(
+                "SELECT author_id, tokens FROM messages WHERE guild_id=? AND id > ? AND tokens!='[]'", (gid, limite)):
+            for t in json.loads(raw):
+                if (len(t) > 3 and t.isalpha() and t not in STOP and t not in STOP_EXTRA) or re.fullmatch(r"xd+", t):
+                    cuenta[(uid, t)] += 1
+        candidatos = sorted(((n, k) for k, n in cuenta.items() if n >= minimo), reverse=True)[:5]
+        if not candidatos:
+            return None
+        n, (uid, palabra) = self.rng.choice(candidatos)
+        return uid, palabra, n
+
     def top(self, gid, n=5):
         out = []
         for uid, c in self.db.execute(
@@ -1855,6 +1911,11 @@ def create_client(config):
             self.flag_apagado = os.path.join(os.path.dirname(os.path.abspath(config.db_path)), "apagado")
             self.dormido = os.path.exists(self.flag_apagado)
             self.aviso_apagado = {}
+            self.voces_bloqueadas = set()  # voces de la biblioteca que el plan gratis no deja usar (se reintentan al reiniciar)
+            self.pendientes = set()        # canales con una respuesta "en visto" esperando
+            self.rareza_dia = (None, 0)    # (día, cuántas rarezas van hoy)
+            self.rareza_ultima = -1e9
+            self.sueno_dia = None
 
         def next_turn(self):
             lo, hi = sorted((config.random_min, config.random_max))
@@ -1905,6 +1966,8 @@ def create_client(config):
                 asyncio.create_task(self.llenar_pool(self.target_guild()), name="nombres")
             if getattr(self, "_lore_task", None) is None or self._lore_task.done():
                 self._lore_task = asyncio.create_task(self.lore_loop(), name="lore")
+            if getattr(self, "_rareza_task", None) is None or self._rareza_task.done():
+                self._rareza_task = asyncio.create_task(self.rareza_loop(), name="rarezas")
 
         @tasks.loop(seconds=30)
         async def quedarse(self):
@@ -2397,7 +2460,7 @@ def create_client(config):
             pregunta = re.sub(r"<@!?\d+>", "", message.content).strip() or "(solo te mencionó)"
             quien = message.author.display_name
             return await self.ia_natural(message.guild, lambda n: [
-                {"role": "system", "content": PERSONALIDAD + self.lore() + "\n\nConversaciones reales del server:\n"
+                {"role": "system", "content": PERSONALIDAD + self.lore() + self.obsesion_texto() + "\n\nConversaciones reales del server:\n"
                                               + self.armar_contexto(muestra, tema, n)},
                 {"role": "user", "content": f"Conversación reciente del canal:\n{charla}\n\n"
                                             f"Ahora te habla {quien} y te dice: {pregunta}\n\nRespondele a {quien}. Solo tu mensaje."},
@@ -2416,7 +2479,7 @@ def create_client(config):
                 pedido = ("Nadie te llamó: metete en la conversación con un mensaje tuyo sobre lo que están hablando, "
                           "como uno más del grupo, sin responderle a nadie en particular. Solo tu mensaje.")
             return await self.ia_natural(message.guild, lambda n: [
-                {"role": "system", "content": PERSONALIDAD + self.lore() + "\n\nConversaciones reales del server:\n"
+                {"role": "system", "content": PERSONALIDAD + self.lore() + self.obsesion_texto() + "\n\nConversaciones reales del server:\n"
                                               + self.armar_contexto(muestra, tema, n)},
                 {"role": "user", "content": f"Conversación reciente del canal:\n{charla}\n\n{pedido}"},
             ], permitidas=message.content, autor=message.author if responder else None)
@@ -2899,6 +2962,21 @@ def create_client(config):
                 f"respondan con el @ o el nombre (uno solo, 3 intentos c/u). tienen 30 segundos",
                 allowed_mentions=discord.AllowedMentions.none())
             juego["tarea"] = asyncio.create_task(self.reloj_juego(message.channel, juego))
+            if random.random() < BOT_ADIVINA_CHANCE:
+                juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(message.channel, juego))
+
+        async def bot_adivina(self, channel, juego):
+            # a veces el bot "juega" solo: se mete a mitad de partida y siempre acierta (sin sumar puntos)
+            await asyncio.sleep(random.uniform(6, 26))
+            if self.juegos.get(channel.id) is not juego:
+                return
+            self.juegos.pop(channel.id, None)
+            juego["tarea"].cancel()
+            with suppress(discord.HTTPException):
+                await channel.send(random.choice([
+                    "{n}", "es {n}", "{n}. no sé por qué lo sé", "{n}. siempre es {n}", "era {n}. lo supe antes de que empezara",
+                    "{n} obvio", "{n}... creo"]).format(n=juego["autor"].display_name),
+                    allowed_mentions=discord.AllowedMentions.none())
 
         async def juego_opciones(self, channel, juego, texto, segundos):
             self.juegos[channel.id] = juego
@@ -3291,16 +3369,17 @@ def create_client(config):
                 r"\b(insult\w*|pute[ae]\w*|ofend\w*|humill\w*|roaste\w*|bardea\w*|decile\w* (algo )?feo|"
                 r"mierda|verga|vergazo|culer[oa]s?|marica|cabron\w*|hdp|ctm|alv|chinga\w*)\b", t))
 
-        async def etiquetar_voz(self, text, contexto=""):
+        async def etiquetar_voz(self, text, contexto="", acento=None, susurro=False):
             """Le pone etiquetas de ElevenLabs para que suene natural y con emoción. Cada frase sale con un ánimo
-            distinto al azar (enojado, gritando, harto, sarcástico...) para que no se ría siempre."""
+            distinto al azar (enojado, gritando, harto, sarcástico...) para que no se ría siempre.
+            acento: entrada de VOCES (país, jerga, muletillas) para adaptar la frase a esa voz; susurro: todo en voz baja."""
             text = re.sub(r"https?://\S+|<[@#:!&a-zA-Z0-9_]+>", "", text or "").strip()[:200]
             if not text:
                 return text
             animos = [
                 ("enojado", "[angry]", "[frustrated]"), ("gritando", "[shouting]", "[yelling]"),
                 ("harto", "[annoyed]", "[groans]"), ("sarcástico", "[sarcastic]", "[scoffs]"),
-                ("indignado", "[outraged]", "[gasps]"), ("emocionado", "[excited]", "[shouting]"),
+                ("indignado", "[outraged]", "[gasps]"), ("emocionado", "[excited]", "[gasps]"),
                 ("sin ganas", "[tired]", "[sighs]"), ("seco", "[deadpan]", "[exhales]"),
                 ("dramático", "[dramatic]", "[gasps]"), ("burlón", "[mischievously]", "[chuckles]"),
                 ("sorprendido", "[surprised]", "[gasps]"), ("asqueado", "[disgusted]", "[groans]"),
@@ -3308,8 +3387,10 @@ def create_client(config):
                 ("confundido", "[confused]", "[hmm]"), ("impaciente", "[impatient]", "[sighs]"),
             ]
             # grita SOLO si lo insultaron o le pidieron insultar; si no, un ánimo al azar sin gritos
-            grita = self.pide_grito(contexto)
-            if grita:
+            grita = self.pide_grito(contexto) and not susurro
+            if susurro:
+                animo, t1, t2 = "susurrando", "[whispers]", "[mischievously]"
+            elif grita:
                 animo, t1, t2 = random.choice([("gritando", "[shouting]", "[yelling]"), ("enojado", "[angry]", "[shouting]"),
                                                ("furioso", "[furious]", "[yelling]")])
             else:
@@ -3327,17 +3408,26 @@ def create_client(config):
                             "[scoffs] [gasps] [exhales] [tsk] [clears throat] [stammers]. "
                             + ("Como la frase tiene risa, cambiá el jaja por UN [laughs] o [chuckles]. " if tiene_risa else
                                "NO uses [laughs], [chuckles] ni ninguna risa. ")
-                            + "Ponelas justo antes de la parte que modifican. "
+                            + "Ponelas justo antes de la parte que modifican. Los sonidos ([sighs] [exhales] [groans] "
+                              "[gasps] [tsk]) NUNCA al inicio de la frase (suenan a que agarra aire): solo en el medio o al "
+                              "final, y como mucho UNO por frase. "
+                            + ("Decila TODA susurrando, como contando un secreto en la madrugada: empezá con [whispers], "
+                               "todo en minúsculas, sin gritos. " if susurro else "")
                             + ("TIENE QUE GRITAR DE VERDAD: empezá con [shouting] o [yelling], repetí una etiqueta de grito "
                                "a la mitad, poné casi toda la frase en MAYÚSCULAS y terminá con signos de exclamación (!!). "
                                if grita else "NO grites: nada de [shouting] ni [yelling] ni frases en mayúsculas; "
                                "como mucho una palabra en MAYÚSCULAS para dar énfasis. ")
                             + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. "
-                            + ARGENTINO_VOZ + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
-                            "solo la frase con las etiquetas."},
+                            + (acento[1] if acento else "") + " Fuera de eso no cambies el sentido, no traduzcas ni "
+                            "expliques: devolvé solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
                     ], max_tokens=200, temperatura=0.8, tiempo=12)
                     if etiquetado and "[" in etiquetado and len(etiquetado) < 400:
+                        # nunca empieza con un sonido de aire (suena a que agarra aliento)
+                        etiquetado = re.sub(r"^\s*(?:\[(?:sighs?|exhales?|groans?|gasps?|tsk|clears throat)\]\s*)+", "",
+                                            etiquetado, flags=re.I)
+                        if susurro and not re.match(r"\s*\[whisper", etiquetado, re.I):
+                            etiquetado = "[whispers] " + etiquetado
                         if not tiene_risa:
                             etiquetado = re.sub(r"\[(laughs[^\]]*|chuckles|giggles)\]\s*", "", etiquetado, flags=re.I)
                         if grita:
@@ -3350,10 +3440,16 @@ def create_client(config):
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
             if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
-            if random.random() < 0.6:  # un toque argentino (la voz tiene acento argentino)
-                m = random.choice(ARGENTINISMOS)
-                text = f"{m}, {text}" if m in ("dale", "boh", "mirá") else f"{text.rstrip('.!?')}, {m}"
-            text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
+            if acento and random.random() < 0.6:  # un toque de la jerga de la voz elegida
+                if random.random() < 0.5:
+                    text = f"{random.choice(acento[2])}, {text}"
+                else:
+                    text = f"{text.rstrip('.!?')}, {random.choice(acento[3])}"
+            if grita or t2 not in ("[shouting]", "[yelling]"):
+                t2 = t2 if random.random() < 0.6 else ""
+            else:
+                t2 = ""
+            text = f"{t1} {text} {t2}".strip()
             return self.forzar_grito(text, t1) if grita else text
 
         @staticmethod
@@ -3369,50 +3465,56 @@ def create_client(config):
                 t += "!!"
             return t
 
-        async def voz_eleven(self, text, contexto=""):
-            """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla."""
+        async def voz_eleven(self, text, contexto="", susurro=False):
+            """Texto -> mp3 con ElevenLabs (Eleven v4 con etiquetas de audio). None si no hay clave o falla.
+            Cada audio sale con una de las voces de VOCES al azar (argentina, chilena, colombiana) y con la jerga de ese país;
+            si una voz no se puede usar (plan gratis), prueba otra y al final la de respaldo."""
             clave = self.clave_eleven()
             if not clave or not text:
                 return None
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40))
-            voz = self._leer_clave("ELEVENLABS_VOICE_ID", "elevenlabs_voice") or "ZuuXsIgssLuaZ8Slz3yX"  # la que eligió Mario (si falla por el plan, usa la de respaldo)
             elegido = self._leer_clave("ELEVENLABS_MODEL", "elevenlabs_model")
             modelos = [elegido] if elegido else ["eleven_v4", "eleven_v3", "eleven_multilingual_v2"]
-            etiquetado = await self.etiquetar_voz(text, contexto)
             voz_respaldo = self._leer_clave("ELEVENLABS_VOICE_FALLBACK", "elevenlabs_voice_fallback") or "JBFqnCBsd6RMkjVDRZzb"
-            intentos = [(m, voz) for m in modelos] + [(m, voz_respaldo) for m in modelos if voz_respaldo != voz]
-            voces_bloqueadas = set()
-            for modelo, voz in intentos:
-                if voz in voces_bloqueadas:
-                    continue
-                # el modelo viejo no entiende etiquetas: a ese se le manda la frase limpia
-                frase = etiquetado if modelo in ("eleven_v4", "eleven_v3") else re.sub(r"\[[^\]]*\]\s*", "", etiquetado)
-                try:
-                    async with self.sesion.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz}",
-                                                params={"output_format": "mp3_44100_128"},
-                                                headers={"xi-api-key": clave},
-                                                json={"text": frase[:400], "model_id": modelo},
-                                                timeout=aiohttp.ClientTimeout(total=30)) as r:
-                        if r.status != 200:
-                            error = (await r.text())[:300]
-                            log.warning("ElevenLabs %s/%s respondio %s: %s", modelo, voz, r.status, error[:200])
-                            if r.status in (401, 429):  # clave mala o sin créditos: no sirve probar otro modelo
-                                return None
-                            if "library voices" in error or "paid_plan_required" in error:
-                                # voz de la comunidad en plan gratis: pasar directo a la voz de respaldo
-                                voces_bloqueadas.add(voz)
-                            continue
-                        log.info("ElevenLabs %s/%s: %s", modelo, voz, frase[:120])
-                        return await leer_todo(r, 5_000_000)
-                except Exception:
-                    log.exception("Fallo ElevenLabs (%s)", modelo)
+            fija = os.environ.get("ELEVENLABS_VOICE_ID", "").strip()  # si se fija una voz por variable, solo usa esa
+            voces = [fija] if fija else list(VOCES)
+            random.shuffle(voces)
+            voces = [v for v in voces if v not in self.voces_bloqueadas]
+            if voz_respaldo not in voces:
+                voces.append(voz_respaldo)
+            for voz in voces:
+                acento = VOCES.get(voz)  # la voz de respaldo no tiene acento: sin jerga
+                etiquetado = await self.etiquetar_voz(text, contexto, acento, susurro)
+                for modelo in modelos:
+                    # el modelo viejo no entiende etiquetas: a ese se le manda la frase limpia
+                    frase = etiquetado if modelo in ("eleven_v4", "eleven_v3") else re.sub(r"\[[^\]]*\]\s*", "", etiquetado)
+                    try:
+                        async with self.sesion.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz}",
+                                                    params={"output_format": "mp3_44100_128"},
+                                                    headers={"xi-api-key": clave},
+                                                    json={"text": frase[:400], "model_id": modelo},
+                                                    timeout=aiohttp.ClientTimeout(total=30)) as r:
+                            if r.status != 200:
+                                error = (await r.text())[:300]
+                                log.warning("ElevenLabs %s/%s respondio %s: %s", modelo, voz, r.status, error[:200])
+                                if r.status in (401, 429):  # clave mala o sin créditos: no sirve probar otro modelo ni otra voz
+                                    return None
+                                if "library voices" in error or "paid_plan_required" in error:
+                                    # voz de la comunidad en plan gratis: no se vuelve a intentar hasta reiniciar
+                                    self.voces_bloqueadas.add(voz)
+                                    break
+                                continue
+                            log.info("ElevenLabs %s/%s (%s): %s", modelo, voz, acento[0] if acento else "respaldo", frase[:120])
+                            return await leer_todo(r, 5_000_000)
+                    except Exception:
+                        log.exception("Fallo ElevenLabs (%s)", modelo)
             return None
 
-        async def mandar_audio(self, channel, text, contexto=""):
+        async def mandar_audio(self, channel, text, contexto="", susurro=False):
             """Manda una nota de voz (la burbuja con la onda). Si Discord no la acepta, manda el mp3 normal."""
-            mp3 = await self.voz_eleven(text, contexto)
+            mp3 = await self.voz_eleven(text, contexto, susurro)
             if not mp3:
                 return False
             try:
@@ -3518,6 +3620,192 @@ def create_client(config):
         @cambiar_estado.before_loop
         async def before_extras(self):
             await self.wait_until_ready()
+
+        # ---------------- rarezas: cosas raras que hace de vez en cuando, como si fuera uno más ----------------
+        def obsesion_actual(self):
+            semana = ((datetime.now(HN) - OBSESION_INICIO).days // 7) % len(OBSESIONES)
+            return OBSESIONES[semana]
+
+        def obsesion_texto(self):
+            """Línea para el prompt de la IA con la obsesión de la semana (solo en 1 de cada 4 respuestas)."""
+            if random.random() > 0.25:
+                return ""
+            nombre, detalle = self.obsesion_actual()
+            return (f"\n\nEsta semana estás medio obsesionado con {nombre} ({detalle}). Si encaja, lo metés de pasada, como si "
+                    "fuera normal, sin explicarlo ni decir que es una obsesión. Si te hacen una pregunta, contestala bien primero.")
+
+        @staticmethod
+        def con_aparte(texto):
+            """A veces le habla a 'alguien más' en medio de lo que dice (shh, ahora no...)."""
+            if not texto or random.random() > APARTE_CHANCE:
+                return texto
+            aparte = random.choice(APARTES)
+            return f"{texto} ... {aparte}" if random.random() < 0.5 else f"{aparte}... {texto}"
+
+        async def responder_tarde(self, message):
+            # lo dejó en visto: responde entre 10 minutos y 3 horas después, como si recién lo viera
+            cid = message.channel.id
+            try:
+                await asyncio.sleep(random.choice([random.uniform(600, 1800), random.uniform(3600, 10800)]))
+                if self.dormido or self.stopping:
+                    return
+                answer = ""
+                with suppress(Exception):
+                    answer = await self.ia_responder(message) or ""
+                if not answer:
+                    answer = await self.worker.call("reply", message.guild.id, SHARED, message.content) or ""
+                if answer:
+                    prefijo = random.choice(["", "", "", "recién veo esto. ", "uy no había visto. ", "perdón, me quedé pensando. "])
+                    await self.send_text(message, prefijo + answer, reply=True)
+            except Exception:
+                log.exception("Fallo al responder tarde")
+            finally:
+                self.pendientes.discard(cid)
+
+        def canal_rareza(self):
+            guild, canal = self.target_guild(), self.get_channel(config.text_channel_id)
+            if guild is None or not isinstance(canal, discord.TextChannel) or canal.guild.id != guild.id:
+                return None
+            p = canal.permissions_for(guild.me)
+            return canal if p.send_messages and p.read_message_history else None
+
+        async def rareza_loop(self):
+            await asyncio.sleep(180)
+            while not self.is_closed():
+                try:
+                    await self.rareza_tick()
+                except Exception:
+                    log.exception("Fallo una rareza")
+                await asyncio.sleep(random.uniform(600, 1500))
+
+        async def rareza_tick(self):
+            if self.dormido or self.stopping:
+                return
+            canal = self.canal_rareza()
+            if canal is None or canal.id in self.juegos:
+                return
+            ahora = datetime.now(HN)
+            if self.rareza_dia[0] != ahora.date():
+                self.rareza_dia = (ahora.date(), 0)
+            if self.rareza_dia[1] >= RAREZA_MAX_DIA or time.monotonic() - self.rareza_ultima < RAREZA_ESPERA:
+                return
+            if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
+                chance, opciones = 0.10, [("noche", 4), ("susurro", 3)]
+            elif 7 <= ahora.hour < 23:
+                chance, opciones = 0.025, [("viejo", 3), ("cuentas", 2), ("susurro", 1)]
+                if ahora.hour < 11 and self.sueno_dia != ahora.date():
+                    opciones.append(("sueno", 5))  # el sueño se cuenta en la mañana
+            else:
+                return
+            if random.random() > chance:
+                return
+            nombre = random.choices([o for o, _ in opciones], [w for _, w in opciones])[0]
+            if await getattr(self, "rareza_" + nombre)(canal):
+                log.info("Rareza: %s", nombre)
+                self.rareza_ultima = time.monotonic()
+                self.rareza_dia = (ahora.date(), self.rareza_dia[1] + 1)
+                if nombre == "sueno":
+                    self.sueno_dia = ahora.date()
+
+        async def frase_rara(self, canal, instruccion, max_palabras=18):
+            """Una frase corta de la IA con el lore y la obsesión de la semana; si la IA falla, una del cerebro."""
+            texto = None
+            if self.proveedores_ia():
+                with suppress(Exception):
+                    muestra, tema = await self.contexto_server(canal.guild, "", self.contexto_max())
+                    texto = await self.ia_natural(canal.guild, lambda n: [
+                        {"role": "system", "content": PERSONALIDAD + self.lore() + self.obsesion_texto()
+                                                      + "\n\nConversaciones reales del server:\n" + self.armar_contexto(muestra, tema, n)},
+                        {"role": "user", "content": instruccion}],
+                        max_palabras=max_palabras, max_caracteres=max_palabras * 9, max_tokens=90, temperatura=0.95)
+            return texto or await self.worker.call("reply", canal.guild.id, SHARED, "")
+
+        async def rareza_noche(self, canal):
+            # habla solo de madrugada (no borra el mensaje después)
+            texto = await self.frase_rara(
+                canal, f"Son las {datetime.now(HN).strftime('%H:%M')}, nadie escribe hace rato y vos seguís despierto. "
+                       "Escribí UN mensaje corto como si pensaras en voz alta o hablaras solo: raro o absurdo, pero con sentido "
+                       "para este grupo. No saludes ni le hables a nadie. Solo el mensaje.")
+            if not texto:
+                return False
+            try:
+                await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                return False
+            return True
+
+        async def rareza_susurro(self, canal):
+            # nota de voz susurrando, sin que nadie le haya hablado
+            if not self.clave_eleven() or not canal.permissions_for(canal.guild.me).attach_files:
+                return False
+            texto = await self.frase_rara(
+                canal, "Vas a decir algo en voz baja, como un secreto o algo que no deberías estar diciendo. "
+                       "Una frase corta y rara. Solo la frase.", 14)
+            return bool(texto) and await self.mandar_audio(canal, texto, "", susurro=True)
+
+        async def rareza_viejo(self, canal):
+            # le responde a un mensaje de hace días o semanas como si lo acabara de leer
+            if not self.proveedores_ia():
+                return False
+            ahora = datetime.now(timezone.utc)
+            candidatos = []
+            async for m in canal.history(limit=30, around=ahora - timedelta(days=random.uniform(3, 40))):
+                if (not m.author.bot and not m.webhook_id and m.content and not COMANDO_RE.match(m.content)
+                        and len(m.content.split()) >= 4 and (ahora - m.created_at).days >= 3):
+                    candidatos.append(m)
+            if not candidatos:
+                return False
+            m = random.choice(candidatos)
+            muestra, tema = await self.contexto_server(canal.guild, m.content, self.contexto_max())
+            quien = m.author.display_name
+            texto = await self.ia_natural(canal.guild, lambda n: [
+                {"role": "system", "content": PERSONALIDAD + self.lore() + self.obsesion_texto()
+                                              + "\n\nConversaciones reales del server:\n" + self.armar_contexto(muestra, tema, n)},
+                {"role": "user", "content": f"Acabás de leer este mensaje de {quien}:\n> {m.content[:300]}\n\n"
+                                            f"Respondele como si fuera de ahora, sin decir que es viejo y sin explicar nada "
+                                            "(a veces podés mostrar que recién lo viste). Solo tu mensaje."}],
+                autor=m.author, max_palabras=18)
+            if not texto:
+                return False
+            await self.send_text(m, texto, reply=True)
+            return True
+
+        async def rareza_sueno(self, canal):
+            # cuenta un sueño absurdo hecho con la conversación reciente
+            charla = await self.ultimos_mensajes(canal, None, 40)
+            if len(charla) < 150:
+                return False
+            texto = await self.ia_natural(canal.guild, lambda n: [
+                {"role": "system", "content": PERSONALIDAD + "\n\nConversación reciente del canal:\n" + charla},
+                {"role": "user", "content": "Anoche soñaste algo. Contalo en una o dos frases, empezando con \"soñé que\" o "
+                                            "\"anoche soñé\", mezclando y deformando cosas de esa conversación (personas, temas, "
+                                            "chistes) como pasa en los sueños: absurdo, sin lógica, sin explicar. Nada sexual, "
+                                            "de salud ni íntimo. Solo el mensaje."}],
+                max_palabras=35, max_caracteres=260, max_tokens=110, temperatura=1.0)
+            if not texto:
+                return False
+            try:
+                await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                return False
+            return True
+
+        async def rareza_cuentas(self, canal):
+            # lleva la cuenta (real, sacada de la base) de lo que más repitió alguien esta semana
+            r = await self.worker.call("cuentas_semana", canal.guild.id, 7, 8)
+            if not r:
+                return False
+            uid, palabra, veces = r
+            nombre = await self.name_of(canal.guild, uid)
+            texto = random.choice([
+                "van {n} veces que {q} dice \"{w}\" esta semana", "{q} lleva {n} \"{w}\" en 7 días. yo solo cuento",
+                "anoté que {q} dijo \"{w}\" {n} veces esta semana", "{n} veces. \"{w}\". {q}. esta semana. solo digo"]
+            ).format(n=veces, q=nombre, w=palabra)
+            try:
+                await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                return False
+            return True
 
         async def on_voice_state_update(self, member, before, after):
             if member.bot or self.stopping or self.dormido:
@@ -3988,6 +4276,13 @@ def create_client(config):
                         self.counters[cid] = (0, self.next_turn())
                         await self.worker.call("learn", mid, guild.id, message.channel.id, uid, text, revision)
                         return
+                if respond and mentioned and cid not in self.pendientes and self.clave_groq() \
+                        and random.random() < VISTO_CHANCE:
+                    # lo deja en visto y responde horas después (uno a la vez por canal)
+                    self.pendientes.add(cid)
+                    await self.worker.call("learn", mid, guild.id, cid, uid, text, revision)
+                    asyncio.create_task(self.responder_tarde(message))
+                    return
                 responder_ia = mentioned
                 if respond and mentioned and self.clave_groq():
                     with suppress(Exception):
@@ -4015,7 +4310,7 @@ def create_client(config):
                 if respond:
                     if not answer and mentioned:
                         answer = random.choice(["no tengo nada que decir", "...", "hablen mas para que aprenda algo"])
-                    await self.send_text(message, answer, reply=responder_ia)
+                    await self.send_text(message, self.con_aparte(answer), reply=responder_ia)
             except Busy:
                 log.warning("Cola ocupada: el historial recuperará mensajes pendientes")
             except Exception:
@@ -4073,6 +4368,9 @@ def create_client(config):
             self.quedarse.cancel()
             self.hablar_vc.cancel()
             self.cambiar_estado.cancel()
+            for t in (getattr(self, "_rareza_task", None), getattr(self, "_lore_task", None)):
+                if t is not None:
+                    t.cancel()
             if self.sesion is not None:
                 await self.sesion.close()
             if self.history_task is not None:
