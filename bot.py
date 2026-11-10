@@ -2970,7 +2970,7 @@ def create_client(config):
             self.recordar_nombres(guild.id, autor)
             self.juegos[cid] = juego
             await message.channel.send(
-                f"**quien dijo esto?** ({cuando})\n> {text}\n"
+                f"**quien dijo esto?**{f' ({cuando})' if cuando else ''}\n> {text}\n"
                 f"respondan con el @ o el nombre (uno solo, 3 intentos c/u). tienen 30 segundos",
                 allowed_mentions=discord.AllowedMentions.none())
             juego["tarea"] = asyncio.create_task(self.reloj_juego(message.channel, juego))
@@ -3791,7 +3791,7 @@ def create_client(config):
             await asyncio.sleep(2)
             if canal.id in self.juegos:
                 return True
-            juego = await self.lanzar_adivina(m, autor, texto, f"hace {random.choice([3, 5, 8, 12, 19, 27])} dias")
+            juego = await self.lanzar_adivina(m, autor, texto, None)  # sin fecha: no hay un mensaje real al que ponerle edad
             juego["tarea_bot"] = asyncio.create_task(self.bot_adivina(canal, juego))
             return True
 
