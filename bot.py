@@ -362,6 +362,7 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
+HABLA_SOLO_CADA = (15 * 60, 45 * 60)  # habla solo, aunque nadie escriba: cada 15 a 45 min al azar (unas 2 veces por hora)
 RAREZA_MAX_DIA = 8          # máximo de rarezas por día
 RAREZA_ESPERA = 1 * 3600    # mínimo entre una rareza y otra
 ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (a cualquier hora)
@@ -1975,6 +1976,8 @@ def create_client(config):
                 self._lore_task = asyncio.create_task(self.lore_loop(), name="lore")
             if getattr(self, "_rareza_task", None) is None or self._rareza_task.done():
                 self._rareza_task = asyncio.create_task(self.rareza_loop(), name="rarezas")
+            if getattr(self, "_habla_task", None) is None or self._habla_task.done():
+                self._habla_task = asyncio.create_task(self.habla_solo_loop(), name="habla-solo")
 
         @tasks.loop(seconds=30)
         async def quedarse(self):
@@ -3689,6 +3692,32 @@ def create_client(config):
             finally:
                 self.pendientes.discard(cid)
 
+        async def habla_solo_loop(self):
+            await asyncio.sleep(random.uniform(120, 600))
+            while not self.is_closed():
+                try:
+                    await self.habla_solo()
+                except Exception:
+                    log.exception("Fallo al hablar solo")
+                await asyncio.sleep(random.uniform(*HABLA_SOLO_CADA))
+
+        async def habla_solo(self):
+            # suelta uno de sus mensajes normales (frases random del server) aunque nadie esté escribiendo
+            if self.dormido or self.stopping:
+                return
+            canal = self.canal_rareza()
+            if canal is None or canal.id in self.juegos:
+                return
+            texto = await self.worker.call("reply", canal.guild.id, SHARED, "")
+            if not texto:
+                return
+            try:
+                async with canal.typing():
+                    await asyncio.sleep(random.uniform(1, 4))
+                await canal.send(texto, allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                pass
+
         def canal_rareza(self):
             guild, canal = self.target_guild(), self.get_channel(config.text_channel_id)
             if guild is None or not isinstance(canal, discord.TextChannel) or canal.guild.id != guild.id:
@@ -4428,7 +4457,7 @@ def create_client(config):
             self.quedarse.cancel()
             self.hablar_vc.cancel()
             self.cambiar_estado.cancel()
-            for t in (getattr(self, "_rareza_task", None), getattr(self, "_lore_task", None)):
+            for t in (getattr(self, "_rareza_task", None), getattr(self, "_habla_task", None), getattr(self, "_lore_task", None)):
                 if t is not None:
                     t.cancel()
             if self.sesion is not None:
