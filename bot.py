@@ -362,8 +362,9 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
-RAREZA_MAX_DIA = 2          # máximo de rarezas por día
-RAREZA_ESPERA = 4 * 3600    # mínimo entre una rareza y otra
+RAREZA_MAX_DIA = 4          # máximo de rarezas por día
+RAREZA_ESPERA = 2 * 3600    # mínimo entre una rareza y otra
+ADIVINA_CADA = 8 * 3600     # el bot arranca su propio adivina por lo menos una vez cada 8 horas (de 7 am a 11 pm)
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "tío", "tía"]
@@ -1911,6 +1912,10 @@ def create_client(config):
             self.rareza_dia = (None, 0)    # (día, cuántas rarezas van hoy)
             self.rareza_ultima = -1e9
             self.sueno_dia = None
+            # cuándo fue su último adivina solo (se guarda en un archivo para que no se pierda al reiniciar)
+            self.ultimo_adivina = time.time()
+            with suppress(OSError, ValueError), open(self.ruta_bot("ultimo_adivina")) as fh:
+                self.ultimo_adivina = float(fh.read().strip())
 
         def next_turn(self):
             lo, hi = sorted((config.random_min, config.random_max))
@@ -3680,12 +3685,18 @@ def create_client(config):
             ahora = datetime.now(HN)
             if self.rareza_dia[0] != ahora.date():
                 self.rareza_dia = (ahora.date(), 0)
+            if 7 <= ahora.hour < 23 and time.time() - self.ultimo_adivina >= ADIVINA_CADA:
+                # pasaron 8 horas sin su adivina: lo arranca sí o sí (no cuenta para el máximo del día)
+                if await self.rareza_adivina(canal):
+                    log.info("Rareza: adivina (pasaron 8 horas)")
+                    self.rareza_ultima = time.monotonic()
+                return
             if self.rareza_dia[1] >= RAREZA_MAX_DIA or time.monotonic() - self.rareza_ultima < RAREZA_ESPERA:
                 return
             if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
                 chance, opciones = 0.10, [("noche", 4), ("susurro", 3)]
             elif 7 <= ahora.hour < 23:
-                chance, opciones = 0.025, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
+                chance, opciones = 0.06, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
                 if ahora.hour < 11 and self.sueno_dia != ahora.date():
                     opciones.append(("sueno", 5))  # el sueño se cuenta en la mañana
             else:
@@ -3719,6 +3730,9 @@ def create_client(config):
                 m = await canal.send("!puto adivina")
             except discord.HTTPException:
                 return False
+            self.ultimo_adivina = time.time()
+            with suppress(OSError), open(self.ruta_bot("ultimo_adivina"), "w") as fh:
+                fh.write(str(self.ultimo_adivina))
             await asyncio.sleep(2)
             await self.empezar_juego(m)
             juego = self.juegos.get(canal.id)
