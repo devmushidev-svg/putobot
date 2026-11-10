@@ -1920,8 +1920,8 @@ def create_client(config):
                 if est.get("sueno"):
                     self.sueno_dia = datetime.fromisoformat(est["sueno"]).date()
             # cuándo fue su último adivina solo (se guarda en un archivo para que no se pierda al reiniciar)
-            self.ultimo_adivina = time.time()
-            with suppress(OSError, ValueError), open(self.ruta_bot("ultimo_adivina")) as fh:
+            self.ultimo_adivina = 0.0  # sin archivo: nunca hizo uno, así que en cuanto arranca hace el primero
+            with suppress(OSError, ValueError), open(self.ruta_bot("ultimo_adivina2")) as fh:
                 self.ultimo_adivina = float(fh.read().strip())
 
         def next_turn(self):
@@ -3732,7 +3732,7 @@ def create_client(config):
             if 2 <= ahora.hour < 5:  # madrugada: habla solo o susurra
                 chance, opciones = 0.15, [("noche", 4), ("susurro", 3)]
             elif 7 <= ahora.hour < 23:
-                chance, opciones = 0.14, [("adivina", 4), ("viejo", 3), ("cuentas", 2), ("susurro", 1)]
+                chance, opciones = 0.14, [("viejo", 3), ("cuentas", 2), ("susurro", 1)]
                 if ahora.hour < 11 and self.sueno_dia != ahora.date():
                     opciones.append(("sueno", 5))  # el sueño se cuenta en la mañana
             else:
@@ -3771,7 +3771,7 @@ def create_client(config):
             except discord.HTTPException:
                 return False
             self.ultimo_adivina = time.time()
-            with suppress(OSError), open(self.ruta_bot("ultimo_adivina"), "w") as fh:
+            with suppress(OSError), open(self.ruta_bot("ultimo_adivina2"), "w") as fh:
                 fh.write(str(self.ultimo_adivina))
             await asyncio.sleep(2)
             await self.empezar_juego(m)
