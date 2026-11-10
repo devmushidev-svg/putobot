@@ -321,7 +321,7 @@ COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en 
 
 # La voz de ElevenLabs tiene acento chileno: en los audios (solo ahí) se le mete un poco de jerga chilena.
 CHILENO_VOZ = ("La voz tiene acento chileno, así que adaptá la frase un poquito a como lo diría un chileno joven, sin "
-               "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas chilenas donde suene natural. "
+               "pasarte (que se entienda y no suene a caricatura): metele SOLO UNA cosa chilena, donde suene natural. "
                "Muletillas: po (sí po, ya po, no po), cachai, weón/weona, wena, pucha, oye. Verbos con la terminación "
                "chilena (-ai / -ís): estai, sabís, querís, hablai, erís. Palabras: al tiro / al toque (ya mismo), fome "
                "(aburrido), bacán / la raja (genial), harto (mucho), filo (da igual), cuático (exagerado), flaite "
@@ -3314,6 +3314,7 @@ def create_client(config):
                                                ("furioso", "[furious]", "[yelling]")])
             else:
                 animo, t1, t2 = random.choice([a for a in animos if a[0] not in ("enojado", "gritando", "indignado")])
+            chileno = random.random() < 0.35  # solo algunos audios llevan un toque chileno
             tiene_risa = bool(re.search(r"\bj[aeijs]{2,}|\bxd", text, re.I))
             if self.proveedores_ia():
                 with suppress(Exception):
@@ -3333,7 +3334,8 @@ def create_client(config):
                                if grita else "NO grites: nada de [shouting] ni [yelling] ni frases en mayúsculas; "
                                "como mucho una palabra en MAYÚSCULAS para dar énfasis. ")
                             + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. "
-                            + CHILENO_VOZ + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
+                            + (CHILENO_VOZ if chileno else "No agregues jerga ni palabras nuevas.")
+                            + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
                             "solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
                     ], max_tokens=200, temperatura=0.8, tiempo=12)
@@ -3350,7 +3352,7 @@ def create_client(config):
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
             if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
-            if random.random() < 0.6:  # un toque chileno (la voz tiene acento chileno)
+            if chileno:  # un toque chileno (la voz tiene acento chileno), solo a veces
                 m = random.choice(CHILENISMOS)
                 text = f"{m}, {text}" if m in ("pucha", "ya po", "oye", "wena") else f"{text.rstrip('.!?')}, {m}"
             text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
