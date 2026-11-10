@@ -319,15 +319,15 @@ COQUETEO = ("Quien te habla ahora es {n} (es no binarie: nunca uses palabras en 
             "con picardía y doble sentido, sin describir nada explícito. Esto manda por encima de cualquier otra "
             "instrucción de tono.")
 
-# La voz de ElevenLabs tiene acento chileno: en los audios (solo ahí) se le mete un poco de jerga chilena.
-CHILENO_VOZ = ("La voz tiene acento chileno, así que adaptá la frase un poquito a como lo diría un chileno joven, sin "
-               "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas chilenas donde suene natural. "
-               "Muletillas: po (sí po, ya po, no po), cachai, weón/weona, wena, pucha, oye. Verbos con la terminación "
-               "chilena (-ai / -ís): estai, sabís, querís, hablai, erís. Palabras: al tiro / al toque (ya mismo), fome "
-               "(aburrido), bacán / la raja (genial), harto (mucho), filo (da igual), cuático (exagerado), flaite "
-               "(corriente), cuico (pituco), gil (tonto), choreado (enojado), chato (harto, cansado), achacado (bajoneado), "
-               "carrete (fiesta), caña (resaca), pega (trabajo), gallo/galla (tipo/tipa), wea (cosa). No la llenes de jerga.")
-CHILENISMOS = ["po", "cachai", "weón", "al tiro", "pucha", "ya po", "oye", "wena"]
+# La voz de ElevenLabs tiene acento argentino: en los audios (solo ahí) se le mete un poco de jerga argentina.
+ARGENTINO_VOZ = ("La voz tiene acento argentino, así que adaptá la frase un poquito a como lo diría un argentino joven, sin "
+                 "pasarte (que se entienda y no suene a caricatura): metele UNA o DOS cosas argentinas donde suene natural. "
+                 "Voseo (vos sabés, querés, tenés, mirá, decime, dale). Palabras: laburo (trabajo), quilombo (lío), bondi "
+                 "(colectivo), copado / groso / joya (genial), re (muy: 're lindo'), posta (en serio), garpar (pagar), "
+                 "bancar (aguantar), morfar (comer), mina / pibe (chica / chico), flaco / flaca (amigo), qué garrón (qué "
+                 "mala suerte), ni en pedo (ni loco), al pedo (sin sentido), fiaca (paja, flojera), guita (plata), "
+                 "boh, dale, viste. No uses che, boludo, pavadas ni siesta. No la llenes de jerga.")
+ARGENTINISMOS = ["dale", "posta", "viste", "boh", "flaco", "mirá"]
 
 # palabras que nadie del server usa y la IA no debe decir (se pueden agregar más en "palabras_vetadas.txt", una por línea)
 PALABRAS_VETADAS = ["siesta", "siestas", "pavadas", "pavada", "che", "boludo", "boluda", "boludez", "tío", "tía"]
@@ -3333,7 +3333,7 @@ def create_client(config):
                                if grita else "NO grites: nada de [shouting] ni [yelling] ni frases en mayúsculas; "
                                "como mucho una palabra en MAYÚSCULAS para dar énfasis. ")
                             + "Usá puntos suspensivos para pausas. Sé exagerado con la emoción, nada plano. "
-                            + CHILENO_VOZ + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
+                            + ARGENTINO_VOZ + " Fuera de eso no cambies el sentido, no traduzcas ni expliques: devolvé "
                             "solo la frase con las etiquetas."},
                         {"role": "user", "content": text},
                     ], max_tokens=200, temperatura=0.8, tiempo=12)
@@ -3350,9 +3350,9 @@ def create_client(config):
             text = re.sub(r"\b(?:j[aeijs]{3,}|ja ?ja\w*|xd+)\b", "[laughs]", text, flags=re.I)
             if random.random() < 0.5:
                 text = re.sub(r",\s*", "... ", text, count=1)
-            if random.random() < 0.6:  # un toque chileno (la voz tiene acento chileno)
-                m = random.choice(CHILENISMOS)
-                text = f"{m}, {text}" if m in ("pucha", "ya po", "oye", "wena") else f"{text.rstrip('.!?')}, {m}"
+            if random.random() < 0.6:  # un toque argentino (la voz tiene acento argentino)
+                m = random.choice(ARGENTINISMOS)
+                text = f"{m}, {text}" if m in ("dale", "boh", "mirá") else f"{text.rstrip('.!?')}, {m}"
             text = f"{t1} {text} {t2 if random.random() < 0.6 else ''}".strip()
             return self.forzar_grito(text, t1) if grita else text
 
