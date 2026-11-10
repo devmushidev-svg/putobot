@@ -2965,7 +2965,7 @@ def create_client(config):
 
         async def bot_adivina(self, channel, juego):
             # el bot adivina su propia partida: siempre acierta (sin sumar puntos), a menos que alguien le gane
-            await asyncio.sleep(random.uniform(5, 20))
+            await asyncio.sleep(random.uniform(0.5, 1.5))
             if self.juegos.get(channel.id) is not juego:
                 return
             self.juegos.pop(channel.id, None)  # cierra la partida ya: nadie más puede ganarle mientras responde
@@ -2980,7 +2980,7 @@ def create_client(config):
             with suppress(discord.HTTPException):
                 # responde como cualquier jugador: con el @ del autor
                 await channel.send(f"<@{autor.id}>", allowed_mentions=ninguna)
-                await asyncio.sleep(random.uniform(1.5, 3))
+                await asyncio.sleep(random.uniform(0.8, 1.5))
                 await channel.send(random.choice([
                     "{g} le atino, era {n}. lleva {p} puntos", "{g} acerto, sabe demasiado de {n}... sospechoso. {p} puntos",
                     "bien {g}, era {n}. {p} puntos y 0 vida social", "{g} gana. era {n}. ya van {p}"]).format(
