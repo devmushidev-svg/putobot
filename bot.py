@@ -362,6 +362,7 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
+HABLA_SOLO_ACTIVO = False  # apagado: ya no suelta mensajes cada rato (poner True para volver a las ~2 por hora)
 HABLA_SOLO_CADA = (15 * 60, 45 * 60)  # habla solo, aunque nadie escriba: cada 15 a 45 min al azar (unas 2 veces por hora)
 RAREZA_MAX_DIA = 8          # máximo de rarezas por día
 RAREZA_ESPERA = 1 * 3600    # mínimo entre una rareza y otra
@@ -1979,7 +1980,7 @@ def create_client(config):
                 self._rareza_task = asyncio.create_task(self.rareza_loop(), name="rarezas")
             if getattr(self, "_envio_task", None) is None or self._envio_task.done():
                 self._envio_task = asyncio.create_task(self.envio_unico(), name="envio-unico")
-            if getattr(self, "_habla_task", None) is None or self._habla_task.done():
+            if HABLA_SOLO_ACTIVO and (getattr(self, "_habla_task", None) is None or self._habla_task.done()):
                 self._habla_task = asyncio.create_task(self.habla_solo_loop(), name="habla-solo")
 
         @tasks.loop(seconds=30)
@@ -3967,7 +3968,7 @@ def create_client(config):
                 self.dormido = False
                 with suppress(OSError):
                     os.remove(self.flag_apagado)
-                await self.send_text(message, random.choice(["ya volvi, me extrañaron", "prendido. que quieren", "quien me desperto"]), reply=False)
+                await self.send_text(message, random.choice(["ya no voy a joder", "ya volví, ya no voy a joder", "prendido. ya no voy a joder"]), reply=False)
                 log.info("Prendido por %s", autor)
 
         async def command(self, message):
