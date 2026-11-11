@@ -362,6 +362,10 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
+ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
+SUPLICAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
+            "enciendanme por favor, no me dejen asi :'v", "`!puto encender` y les juro que me porto bien :'v",
+            "enciendanme, hace frio aqui adentro :'v"]
 HABLA_SOLO_ACTIVO = False  # apagado: ya no suelta mensajes cada rato (poner True para volver a las ~2 por hora)
 HABLA_SOLO_CADA = (15 * 60, 45 * 60)  # habla solo, aunque nadie escriba: cada 15 a 45 min al azar (unas 2 veces por hora)
 RAREZA_MAX_DIA = 8          # máximo de rarezas por día
@@ -3706,7 +3710,7 @@ def create_client(config):
             if canal is None:
                 return
             try:
-                await canal.send("porfavor enciendanme :'v", allowed_mentions=discord.AllowedMentions.none())
+                await canal.send(ENCIENDANME, allowed_mentions=discord.AllowedMentions.none())
             except discord.HTTPException:
                 return
             with suppress(OSError):
@@ -4282,6 +4286,20 @@ def create_client(config):
             guild = self.target_guild()
             if self.stopping or guild is None or message.guild is None or message.guild.id != guild.id or message.author.bot or message.webhook_id:
                 return
+            if message.reference is not None and message.content.strip().casefold().split()[:1] != ["!puto"] \
+                    and message.channel.permissions_for(message.guild.me).send_messages:
+                # si le responden al "porfavor enciendanme" suplica que lo enciendan; si le responden a la súplica, no dice nada
+                ref = message.reference.resolved
+                if not isinstance(ref, discord.Message) and message.reference.message_id:
+                    with suppress(discord.HTTPException):
+                        ref = await message.channel.fetch_message(message.reference.message_id)
+                if isinstance(ref, discord.Message) and ref.author.id == self.user.id:
+                    if ref.content == ENCIENDANME:
+                        with suppress(discord.HTTPException):
+                            await message.reply(random.choice(SUPLICAS), mention_author=False)
+                        return
+                    if ref.content in SUPLICAS:
+                        return
             if self.dormido and message.content.strip().casefold().split()[:2] not in (["!puto", "prender"], ["!puto", "encender"]):
                 # callado: sigue aprendiendo en silencio, pero no responde, no reacciona y no corre comandos.
                 # Si lo nombran, solo avisa que está apagado (máximo una vez cada 30 s por canal).
