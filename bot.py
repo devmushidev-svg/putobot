@@ -1977,6 +1977,8 @@ def create_client(config):
                 self._lore_task = asyncio.create_task(self.lore_loop(), name="lore")
             if getattr(self, "_rareza_task", None) is None or self._rareza_task.done():
                 self._rareza_task = asyncio.create_task(self.rareza_loop(), name="rarezas")
+            if getattr(self, "_envio_task", None) is None or self._envio_task.done():
+                self._envio_task = asyncio.create_task(self.envio_unico(), name="envio-unico")
             if getattr(self, "_habla_task", None) is None or self._habla_task.done():
                 self._habla_task = asyncio.create_task(self.habla_solo_loop(), name="habla-solo")
 
@@ -3692,6 +3694,22 @@ def create_client(config):
                 log.exception("Fallo al responder tarde")
             finally:
                 self.pendientes.discard(cid)
+
+        async def envio_unico(self):
+            # manda un mensaje una sola vez (aunque esté apagado/callado); la marca queda en un archivo en la VM
+            marca = self.ruta_bot("envio_enciendanme")
+            if os.path.exists(marca):
+                return
+            await asyncio.sleep(20)
+            canal = self.canal_rareza()
+            if canal is None:
+                return
+            try:
+                await canal.send("porfavor enciendanme :'v", allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                return
+            with suppress(OSError):
+                open(marca, "w").close()
 
         async def habla_solo_loop(self):
             await asyncio.sleep(random.uniform(120, 600))
