@@ -363,9 +363,12 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
 ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
-SUPLICAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
-            "enciendanme por favor, no me dejen asi :'v", "`!puto encender` y les juro que me porto bien :'v",
-            "enciendanme, hace frio aqui adentro :'v"]
+SUPLICAS = ["enciendeme we", "we enciendeme", "enciendeme porfa", "no me dejen asi, `!puto encender`",
+            "enciendanme pues", "`!puto encender` porfa, me aburro", "enciendeme, hace frio aqui adentro :'v",
+            "porfa enciendeme we"]  # casi ninguna con el pacman
+SUPLICAS_VIEJAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
+                   "enciendanme por favor, no me dejen asi :'v", "`!puto encender` y les juro que me porto bien :'v",
+                   "enciendanme, hace frio aqui adentro :'v"]  # ya mandadas antes: responderles tampoco hace nada
 HABLA_SOLO_ACTIVO = False  # apagado: ya no suelta mensajes cada rato (poner True para volver a las ~2 por hora)
 HABLA_SOLO_CADA = (15 * 60, 45 * 60)  # habla solo, aunque nadie escriba: cada 15 a 45 min al azar (unas 2 veces por hora)
 RAREZA_MAX_DIA = 8          # máximo de rarezas por día
@@ -4298,7 +4301,7 @@ def create_client(config):
                         with suppress(discord.HTTPException):
                             await message.reply(random.choice(SUPLICAS), mention_author=False)
                         return
-                    if ref.content in SUPLICAS:
+                    if ref.content in SUPLICAS or ref.content in SUPLICAS_VIEJAS:
                         return
             if self.dormido and message.content.strip().casefold().split()[:2] not in (["!puto", "prender"], ["!puto", "encender"]):
                 # callado: sigue aprendiendo en silencio, pero no responde, no reacciona y no corre comandos.
