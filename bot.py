@@ -3382,17 +3382,20 @@ def create_client(config):
 
         @staticmethod
         def video_pajaro(miembro):
-            """Ruta del video de felicitacion si el que llego a la meta es pajaro (por nombre), si no None."""
+            """Rutas de los videos de felicitacion si el que llego a la meta es pajaro (por ID o nombre), si no []."""
             nombres = " ".join(str(x) for x in (miembro.display_name, getattr(miembro, "name", ""), getattr(miembro, "global_name", "") or ""))
             t = unicodedata.normalize("NFKD", nombres.casefold()).encode("ascii", "ignore").decode()
             if miembro.id != PAJARO_ID and "pajaro" not in t:
-                return None
+                return []
             base = os.path.dirname(os.path.abspath(__file__))
-            for carpeta in (os.path.join(base, "media"), os.path.join(base, "repo", "media")):
-                ruta = os.path.join(carpeta, "pajaro_1223.mp4")
-                if os.path.isfile(ruta):
-                    return ruta
-            return None
+            out = []
+            for nombre in ("pajaro_1223.mp4", "pajaro_1223_b.mp4"):
+                for carpeta in (os.path.join(base, "media"), os.path.join(base, "repo", "media")):
+                    ruta = os.path.join(carpeta, nombre)
+                    if os.path.isfile(ruta):
+                        out.append(ruta)
+                        break
+            return out
 
         async def premio_meta(self, message, juego, puntos):
             # llegó a META_PUNTOS: mensaje especial con mención, diploma, rol dorado y corona en el ranking
@@ -3404,9 +3407,10 @@ def create_client(config):
             with suppress(Exception):
                 await canal.send(random.choice(MENSAJE_META).format(m=yo.mention, n=yo.display_name, j=juego.upper(), p=puntos),
                                  allowed_mentions=discord.AllowedMentions(users=[yo]))
-            if video:  # pajaro: despues del mensaje va el video (en vez del diploma)
+            for n, ruta in enumerate(video, 1):  # pajaro: despues del mensaje van los videos (en vez del diploma)
                 with suppress(Exception):
-                    await canal.send(file=discord.File(video, "felicidades.mp4"), allowed_mentions=discord.AllowedMentions.none())
+                    await canal.send(file=discord.File(ruta, f"felicidades{n}.mp4"), allowed_mentions=discord.AllowedMentions.none())
+            if video:
                 cancion = None
                 with suppress(Exception):
                     cancion = await self.cancion_pajaro()
