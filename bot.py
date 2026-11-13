@@ -3322,6 +3322,32 @@ def create_client(config):
                 return out
             return [base64.b64decode(x) for x in IMAGENES_DIPLOMA_B64]
 
+        async def probar_musica(self, message):
+            """!puto probar musica (secreto): genera 10 s con ElevenLabs Music para ver si el plan lo deja."""
+            import aiohttp
+            clave = self.clave_eleven()
+            if not clave:
+                await message.channel.send("no hay clave de ElevenLabs")
+                return
+            if self.sesion is None or self.sesion.closed:
+                self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
+            await message.channel.send("generando 10 s de musica...")
+            try:
+                async with message.channel.typing():
+                    async with self.sesion.post("https://api.elevenlabs.io/v1/music", params={"output_format": "mp3_44100_128"},
+                                                headers={"xi-api-key": clave},
+                                                json={"prompt": "cancion de fiesta electronica con cumbia, bailable, voz cantando en español: felicidades pajaro, mil doscientos veintitres puntos",
+                                                      "music_length_ms": 10000},
+                                                timeout=aiohttp.ClientTimeout(total=240)) as r:
+                        if r.status != 200:
+                            await message.channel.send(f"no se pudo: ElevenLabs respondio {r.status}: {(await r.text())[:300]}")
+                            return
+                        datos = await leer_todo(r, 8_000_000)
+                await message.channel.send("si funciona", file=discord.File(io.BytesIO(datos), "prueba.mp3"))
+            except Exception as e:
+                log.exception("Fallo probar musica")
+                await message.channel.send(f"fallo: {type(e).__name__}: {str(e)[:200]}")
+
         async def cancion_pajaro(self):
             """Cancion de ElevenLabs Music para pajaro. Se genera una sola vez y queda guardada; si el plan no deja, None."""
             ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro.mp3")
@@ -4127,6 +4153,9 @@ def create_client(config):
                     await self.como(message.channel, objetivo, respuesta_corta(text))
             elif action in ("apagar", "exterminar", "prender", "encender", "revivir"):
                 await self.apagar_prender(message, action in ("apagar", "exterminar"), exterminar=action == "exterminar", revivir=action == "revivir")
+            elif action == "probar" and len(parts) > 2 and parts[2] in ("musica", "música"):
+                if message.author.id == DUENO_ID:  # secreto: solo el dueño, gasta creditos
+                    await self.probar_musica(message)
             elif action == "sexo":
                 await self.cita_bot(message)
             elif action in ("gif", "gifs"):
