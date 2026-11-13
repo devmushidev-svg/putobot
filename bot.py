@@ -3971,11 +3971,11 @@ def create_client(config):
             if not apagar:
                 if self.exterminado:
                     if not (revivir and autor.id == DUENO_ID):
-                        await self.send_text(message, random.choice(["solo mi dueño me puede revivir"] if revivir else ["estoy exterminado, nadie me puede encender", "ya fue, me exterminaron. no hay vuelta atras", "nel, estoy exterminado"]), reply=False)
+                        await self.send_text(message, "estoy muerto", reply=False)
                         log.info("%s intentó prenderlo estando exterminado", autor)
                         return
                 elif revivir and autor.id != DUENO_ID:
-                    await self.send_text(message, "solo mi dueño me puede revivir", reply=False)
+                    await self.send_text(message, "estoy muerto", reply=False)
                     return
             if apagar:
                 if exterminar:
@@ -4344,7 +4344,7 @@ def create_client(config):
                     if nombrado and ahora - self.aviso_apagado.get(message.channel.id, -1e9) >= 30 \
                             and message.channel.permissions_for(message.guild.me).send_messages:
                         self.aviso_apagado[message.channel.id] = ahora
-                        await self.send_text(message, "estoy exterminado, nadie me puede encender" if self.exterminado else "estoy apagado, enciendeme con `!puto encender`")
+                        await self.send_text(message, "estoy muerto" if self.exterminado else "estoy apagado, enciendeme con `!puto encender`")
                 with suppress(Exception):
                     if self.permitted(message.channel):
                         row = self.training_row(message)
