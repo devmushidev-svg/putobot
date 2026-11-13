@@ -3381,11 +3381,11 @@ def create_client(config):
             return datos
 
         @staticmethod
-        def video_pajaro(miembro):
+        def video_pajaro(miembro, forzar=False):
             """Rutas de los videos de felicitacion si el que llego a la meta es pajaro (por ID o nombre), si no []."""
             nombres = " ".join(str(x) for x in (miembro.display_name, getattr(miembro, "name", ""), getattr(miembro, "global_name", "") or ""))
             t = unicodedata.normalize("NFKD", nombres.casefold()).encode("ascii", "ignore").decode()
-            if miembro.id != PAJARO_ID and "pajaro" not in t:
+            if not forzar and miembro.id != PAJARO_ID and "pajaro" not in t:
                 return []
             base = os.path.dirname(os.path.abspath(__file__))
             out = []
@@ -3397,12 +3397,12 @@ def create_client(config):
                         break
             return out
 
-        async def premio_meta(self, message, juego, puntos):
+        async def premio_meta(self, message, juego, puntos, prueba=False):
             # llegó a META_PUNTOS: mensaje especial con mención, diploma, rol dorado y corona en el ranking
             yo, guild, canal = message.author, message.guild, message.channel
             log.info("%s llego a %s puntos en %s", yo, puntos, juego)
             # pajaro: en vez del mensaje + diploma (eso fue lo de jere) va el video del gato bailando
-            video = self.video_pajaro(yo)
+            video = self.video_pajaro(yo, forzar=prueba)
             enviado = bool(video)
             with suppress(Exception):
                 await canal.send(random.choice(MENSAJE_META).format(m=yo.mention, n=yo.display_name, j=juego.upper(), p=puntos),
@@ -3431,6 +3431,8 @@ def create_client(config):
                 await canal.send(file=discord.File(io.BytesIO(diploma), "diploma.png"), allowed_mentions=discord.AllowedMentions.none())
             # rol dorado (solo si el bot tiene permiso de gestionar roles)
             with suppress(Exception):
+                if prueba:
+                    raise RuntimeError("prueba: sin rol")
                 rol = discord.utils.get(guild.roles, name="leyenda 1223")
                 if rol is None:
                     rol = await guild.create_role(name="leyenda 1223", colour=discord.Colour.gold(), hoist=True,
@@ -4416,6 +4418,12 @@ def create_client(config):
                     and message.content.strip().casefold().replace("música", "musica").split() == ["!puto", "probar", "musica"] \
                     and message.channel.permissions_for(message.guild.me).send_messages:
                 await self.probar_musica(message)
+                return
+            if not self.stopping and message.guild is not None and not message.author.bot and message.author.id == DUENO_ID \
+                    and message.content.strip().casefold().split() == ["!puto", "probar", "trofeo", "pajaro"] \
+                    and message.channel.permissions_for(message.guild.me).send_messages:
+                # prueba del premio de pajaro: mismo mensaje, videos y canción, pero te menciona a vos y no da rol
+                await self.premio_meta(message, "real", META_PUNTOS, prueba=True)
                 return
             guild = self.target_guild()
             if self.stopping or guild is None or message.guild is None or message.guild.id != guild.id or message.author.bot or message.webhook_id:
