@@ -3321,17 +3321,43 @@ def create_client(config):
                 return out
             return [base64.b64decode(x) for x in IMAGENES_DIPLOMA_B64]
 
+        @staticmethod
+        def video_pajaro(miembro):
+            """Ruta del video de felicitacion si el que llego a la meta es pajaro (por nombre), si no None."""
+            nombres = " ".join(str(x) for x in (miembro.display_name, getattr(miembro, "name", ""), getattr(miembro, "global_name", "") or ""))
+            t = unicodedata.normalize("NFKD", nombres.casefold()).encode("ascii", "ignore").decode()
+            if "pajaro" not in t:
+                return None
+            base = os.path.dirname(os.path.abspath(__file__))
+            for carpeta in (os.path.join(base, "media"), os.path.join(base, "repo", "media")):
+                ruta = os.path.join(carpeta, "pajaro_1223.mp4")
+                if os.path.isfile(ruta):
+                    return ruta
+            return None
+
         async def premio_meta(self, message, juego, puntos):
             # llegó a META_PUNTOS: mensaje especial con mención, diploma, rol dorado y corona en el ranking
             yo, guild, canal = message.author, message.guild, message.channel
             log.info("%s llego a %s puntos en %s", yo, puntos, juego)
+            # pajaro: en vez del mensaje + diploma (eso fue lo de jere) va el video del gato bailando
+            video = self.video_pajaro(yo)
+            enviado = False
+            if video:
+                with suppress(Exception):
+                    await canal.send(content=yo.mention, file=discord.File(video, "felicidades.mp4"),
+                                     allowed_mentions=discord.AllowedMentions(users=[yo]))
+                    enviado = True
             with suppress(Exception):
+                if enviado:
+                    raise RuntimeError("ya mande el video")
                 await canal.send(random.choice(MENSAJE_META).format(m=yo.mention, n=yo.display_name, j=juego.upper(), p=puntos),
                                  allowed_mentions=discord.AllowedMentions(users=[yo]))
             avatar = b""
             with suppress(Exception):
                 avatar = await yo.display_avatar.replace(size=512, static_format="png").read()
             with suppress(Exception):
+                if enviado:
+                    raise RuntimeError("ya mande el video")
                 fecha = datetime.now(timezone(timedelta(hours=-6))).strftime("%d/%m/%Y")
                 serie = f"{puntos}-{yo.id % 100000:05d}"
                 diploma = await asyncio.to_thread(make_diploma, avatar, yo.display_name, juego, puntos, fecha, serie,
