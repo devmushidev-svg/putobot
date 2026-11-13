@@ -107,6 +107,7 @@ tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot 
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
 META_PUNTOS = 1223
+PAJARO_ID = 1420079930150092863  # recibe el video del gato bailando al llegar a la meta
 MENSAJE_META = [
     "🏆🏆🏆 **{m} LLEGÓ A {p} PUNTOS EN {j}** 🏆🏆🏆\n"
     "{p} veces. no es suerte, es obsesión.\n"
@@ -3326,7 +3327,7 @@ def create_client(config):
             """Ruta del video de felicitacion si el que llego a la meta es pajaro (por nombre), si no None."""
             nombres = " ".join(str(x) for x in (miembro.display_name, getattr(miembro, "name", ""), getattr(miembro, "global_name", "") or ""))
             t = unicodedata.normalize("NFKD", nombres.casefold()).encode("ascii", "ignore").decode()
-            if "pajaro" not in t:
+            if miembro.id != PAJARO_ID and "pajaro" not in t:
                 return None
             base = os.path.dirname(os.path.abspath(__file__))
             for carpeta in (os.path.join(base, "media"), os.path.join(base, "repo", "media")):
