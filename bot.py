@@ -4411,6 +4411,12 @@ def create_client(config):
             return True
 
         async def on_message(self, message):
+            # secreto: "!puto probar musica" del dueño funciona en CUALQUIER servidor (el resto del bot es de un solo servidor)
+            if not self.stopping and message.guild is not None and not message.author.bot and message.author.id == DUENO_ID \
+                    and message.content.strip().casefold().replace("música", "musica").split() == ["!puto", "probar", "musica"] \
+                    and message.channel.permissions_for(message.guild.me).send_messages:
+                await self.probar_musica(message)
+                return
             guild = self.target_guild()
             if self.stopping or guild is None or message.guild is None or message.guild.id != guild.id or message.author.bot or message.webhook_id:
                 return
