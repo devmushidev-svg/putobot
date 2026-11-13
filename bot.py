@@ -101,7 +101,8 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto meme algo` → gif random con tu texto encima
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
 `!puto habla` → digo algo en el vc (con voz de verdad)
-`!puto apagar` / `!puto exterminar` → me quedo callado en el vc (solo mi dueño me prende de vuelta con `!puto encender` o `!puto revivir`)
+`!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
+`!puto exterminar` → me apagan y nadie me puede encender (solo mi dueño me revive)
 tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
@@ -362,7 +363,7 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
-DUENO_ID = 755802002000314413  # Mario: el único que puede prenderlo/revivirlo cuando lo apagan o lo exterminan
+DUENO_ID = 755802002000314413  # Mario: el único que puede revivirlo (!puto revivir) cuando lo exterminan
 ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
 SUPLICAS = ["enciendeme we", "we enciendeme", "enciendeme porfa :''v", "no me dejen asi, `!puto encender` :''v"]  # pacman con dos lágrimas en dos
 SUPLICAS_VIEJAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
@@ -1917,6 +1918,11 @@ def create_client(config):
             # apagado: se queda en el vc pero no habla ni escribe hasta "!puto prender" (sobrevive a reinicios)
             self.flag_apagado = os.path.join(os.path.dirname(os.path.abspath(config.db_path)), "apagado")
             self.dormido = os.path.exists(self.flag_apagado)
+            # exterminado: apagado que nadie puede encender con !puto encender; solo el dueño lo revive con !puto revivir
+            self.flag_exterminado = os.path.join(os.path.dirname(self.flag_apagado), "exterminado")
+            self.exterminado = os.path.exists(self.flag_exterminado)
+            if self.exterminado:
+                self.dormido = True
             self.aviso_apagado = {}
             self.voces_bloqueadas = set()  # voces de la biblioteca que el plan gratis no deja usar (se reintentan al reiniciar)
             self.pendientes = set()        # canales con una respuesta "en visto" esperando
@@ -3953,24 +3959,37 @@ def create_client(config):
             except Exception:
                 log.warning("No pude avisar entrada/salida del vc")
 
-        async def apagar_prender(self, message, apagar, exterminar=False):
-            autor = message.author  # cualquiera puede apagarlo o exterminarlo, pero solo el dueño (DUENO_ID) lo prende
-            if apagar == self.dormido:
+        async def apagar_prender(self, message, apagar, exterminar=False, revivir=False):
+            # apagar: cualquiera lo apaga y cualquiera lo prende con !puto encender.
+            # exterminar: nadie lo puede encender; solo el dueño (DUENO_ID) lo revive con !puto revivir.
+            autor = message.author
+            if apagar and exterminar and self.dormido and not self.exterminado:
+                pass  # ya estaba apagado, pero ahora lo exterminan
+            elif apagar == self.dormido:
                 await self.send_text(message, "ya estoy apagado, bruto" if apagar else "ya estoy prendido, no ves")
                 return
-            if not apagar and autor.id != DUENO_ID:
-                await self.send_text(message, random.choice(["vos no mandas aca, solo mi dueño me prende", "nel, solo mi dueño me puede prender", "no eres mi dueño, no te hago caso"]), reply=False)
-                log.info("%s intentó prenderlo (solo lo prende el dueño)", autor)
-                return
+            if not apagar:
+                if self.exterminado:
+                    if not (revivir and autor.id == DUENO_ID):
+                        await self.send_text(message, random.choice(["solo mi dueño me puede revivir"] if revivir else ["estoy exterminado, nadie me puede encender", "ya fue, me exterminaron. no hay vuelta atras", "nel, estoy exterminado"]), reply=False)
+                        log.info("%s intentó prenderlo estando exterminado", autor)
+                        return
+                elif revivir and autor.id != DUENO_ID:
+                    await self.send_text(message, "solo mi dueño me puede revivir", reply=False)
+                    return
             if apagar:
                 if exterminar:
-                    mensajes = ["exterminado. solo mi dueño me puede revivir", "me mataron. adios mundo cruel, solo mi dueño me revive", "ya fue, me exterminaron. solo mi dueño me trae de vuelta"]
+                    mensajes = ["exterminado. nadie me puede encender", "me exterminaron. ya no hay vuelta atras", "ya fue, me exterminaron. nadie me trae de vuelta"]
                 else:
-                    mensajes = ["ok me callo. sigo en el vc escuchando sus pendejadas. solo mi dueño me prende de vuelta", "apagado. por fin paz", "ya no digo nada, ahi se quedan con su silencio"]
+                    mensajes = ["ok me callo. sigo en el vc escuchando sus pendejadas. `!puto encender` para que vuelva", "apagado. por fin paz", "ya no digo nada, ahi se quedan con su silencio"]
                 await self.send_text(message, random.choice(mensajes), reply=False)
                 self.dormido = True
                 with suppress(OSError):
                     open(self.flag_apagado, "w").close()
+                if exterminar:
+                    self.exterminado = True
+                    with suppress(OSError):
+                        open(self.flag_exterminado, "w").close()
                 for juego in list(self.juegos.values()):
                     tarea = juego.get("tarea") if isinstance(juego, dict) else None
                     if tarea:
@@ -3982,10 +4001,12 @@ def create_client(config):
                 log.info("%s por %s", "Exterminado" if exterminar else "Apagado", autor)
             else:
                 self.dormido = False
-                with suppress(OSError):
-                    os.remove(self.flag_apagado)
+                self.exterminado = False
+                for f in (self.flag_apagado, self.flag_exterminado):
+                    with suppress(OSError):
+                        os.remove(f)
                 await self.send_text(message, random.choice(["ya no voy a joder", "ya volví, ya no voy a joder", "prendido. ya no voy a joder"]), reply=False)
-                log.info("Prendido por %s", autor)
+                log.info("%s por %s", "Revivido" if revivir else "Prendido", autor)
 
         async def command(self, message):
             parts = message.content.strip().casefold().split()
@@ -4043,7 +4064,7 @@ def create_client(config):
                 else:
                     await self.como(message.channel, objetivo, respuesta_corta(text))
             elif action in ("apagar", "exterminar", "prender", "encender", "revivir"):
-                await self.apagar_prender(message, action in ("apagar", "exterminar"), exterminar=action == "exterminar")
+                await self.apagar_prender(message, action in ("apagar", "exterminar"), exterminar=action == "exterminar", revivir=action == "revivir")
             elif action == "sexo":
                 await self.cita_bot(message)
             elif action in ("gif", "gifs"):
@@ -4323,7 +4344,7 @@ def create_client(config):
                     if nombrado and ahora - self.aviso_apagado.get(message.channel.id, -1e9) >= 30 \
                             and message.channel.permissions_for(message.guild.me).send_messages:
                         self.aviso_apagado[message.channel.id] = ahora
-                        await self.send_text(message, "estoy apagado, solo mi dueño me prende")
+                        await self.send_text(message, "estoy exterminado, nadie me puede encender" if self.exterminado else "estoy apagado, enciendeme con `!puto encender`")
                 with suppress(Exception):
                     if self.permitted(message.channel):
                         row = self.training_row(message)
