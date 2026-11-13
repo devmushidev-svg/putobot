@@ -101,7 +101,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto meme algo` → gif random con tu texto encima
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
 `!puto habla` → digo algo en el vc (con voz de verdad)
-`!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
+`!puto apagar` / `!puto exterminar` → me quedo callado en el vc (solo mi dueño me prende de vuelta con `!puto encender` o `!puto revivir`)
 tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
@@ -362,6 +362,7 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
+DUENO_ID = 755802002000314413  # Mario: el único que puede prenderlo/revivirlo cuando lo apagan o lo exterminan
 ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
 SUPLICAS = ["enciendeme we", "we enciendeme", "enciendeme porfa :''v", "no me dejen asi, `!puto encender` :''v"]  # pacman con dos lágrimas en dos
 SUPLICAS_VIEJAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
@@ -3952,13 +3953,21 @@ def create_client(config):
             except Exception:
                 log.warning("No pude avisar entrada/salida del vc")
 
-        async def apagar_prender(self, message, apagar):
-            autor = message.author  # cualquiera puede apagarlo o prenderlo
+        async def apagar_prender(self, message, apagar, exterminar=False):
+            autor = message.author  # cualquiera puede apagarlo o exterminarlo, pero solo el dueño (DUENO_ID) lo prende
             if apagar == self.dormido:
                 await self.send_text(message, "ya estoy apagado, bruto" if apagar else "ya estoy prendido, no ves")
                 return
+            if not apagar and autor.id != DUENO_ID:
+                await self.send_text(message, random.choice(["vos no mandas aca, solo mi dueño me prende", "nel, solo mi dueño me puede prender", "no eres mi dueño, no te hago caso"]), reply=False)
+                log.info("%s intentó prenderlo (solo lo prende el dueño)", autor)
+                return
             if apagar:
-                await self.send_text(message, random.choice(["ok me callo. sigo en el vc escuchando sus pendejadas. `!puto encender` para que vuelva", "apagado. por fin paz", "ya no digo nada, ahi se quedan con su silencio"]), reply=False)
+                if exterminar:
+                    mensajes = ["exterminado. solo mi dueño me puede revivir", "me mataron. adios mundo cruel, solo mi dueño me revive", "ya fue, me exterminaron. solo mi dueño me trae de vuelta"]
+                else:
+                    mensajes = ["ok me callo. sigo en el vc escuchando sus pendejadas. solo mi dueño me prende de vuelta", "apagado. por fin paz", "ya no digo nada, ahi se quedan con su silencio"]
+                await self.send_text(message, random.choice(mensajes), reply=False)
                 self.dormido = True
                 with suppress(OSError):
                     open(self.flag_apagado, "w").close()
@@ -3970,7 +3979,7 @@ def create_client(config):
                 vc = message.guild.voice_client
                 if vc and vc.is_playing():
                     vc.stop()  # se calla en el vc pero no se sale
-                log.info("Apagado por %s", autor)
+                log.info("%s por %s", "Exterminado" if exterminar else "Apagado", autor)
             else:
                 self.dormido = False
                 with suppress(OSError):
@@ -4033,8 +4042,8 @@ def create_client(config):
                     await self.send_text(message, f"{objetivo.display_name} no ha escrito suficiente para imitarlo, que aburrido")
                 else:
                     await self.como(message.channel, objetivo, respuesta_corta(text))
-            elif action in ("apagar", "prender", "encender"):
-                await self.apagar_prender(message, action == "apagar")
+            elif action in ("apagar", "exterminar", "prender", "encender", "revivir"):
+                await self.apagar_prender(message, action in ("apagar", "exterminar"), exterminar=action == "exterminar")
             elif action == "sexo":
                 await self.cita_bot(message)
             elif action in ("gif", "gifs"):
@@ -4303,7 +4312,7 @@ def create_client(config):
                         return
                     if ref.content in SUPLICAS or ref.content in SUPLICAS_VIEJAS:
                         return
-            if self.dormido and message.content.strip().casefold().split()[:2] not in (["!puto", "prender"], ["!puto", "encender"]):
+            if self.dormido and message.content.strip().casefold().split()[:2] not in (["!puto", "prender"], ["!puto", "encender"], ["!puto", "revivir"]):
                 # callado: sigue aprendiendo en silencio, pero no responde, no reacciona y no corre comandos.
                 # Si lo nombran, solo avisa que está apagado (máximo una vez cada 30 s por canal).
                 with suppress(Exception):
@@ -4314,7 +4323,7 @@ def create_client(config):
                     if nombrado and ahora - self.aviso_apagado.get(message.channel.id, -1e9) >= 30 \
                             and message.channel.permissions_for(message.guild.me).send_messages:
                         self.aviso_apagado[message.channel.id] = ahora
-                        await self.send_text(message, "estoy apagado, enciendeme con `!puto encender`")
+                        await self.send_text(message, "estoy apagado, solo mi dueño me prende")
                 with suppress(Exception):
                     if self.permitted(message.channel):
                         row = self.training_row(message)
