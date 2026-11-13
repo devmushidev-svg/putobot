@@ -3322,6 +3322,38 @@ def create_client(config):
                 return out
             return [base64.b64decode(x) for x in IMAGENES_DIPLOMA_B64]
 
+        async def cancion_pajaro(self):
+            """Cancion de ElevenLabs Music para pajaro. Se genera una sola vez y queda guardada; si el plan no deja, None."""
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro.mp3")
+            with suppress(OSError):
+                with open(ruta, "rb") as fh:
+                    return fh.read()
+            clave = self.clave_eleven()
+            if not clave:
+                return None
+            import aiohttp
+            if self.sesion is None or self.sesion.closed:
+                self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
+            prompt = ("Cancion de fiesta electronica con cumbia, estilo party hard, bailable, con mucha energia, coros gritados "
+                      "y de fondo gente festejando. Voz que canta en español: "
+                      "\"Felicidades pajaro ctm, felicidades pajaro ctm, por llegar a mil doscientos veintitres puntos, "
+                      "mil doscientos veintitres, mil doscientos veintitres, felicidades pajaro ctm\".")
+            try:
+                async with self.sesion.post("https://api.elevenlabs.io/v1/music", params={"output_format": "mp3_44100_128"},
+                                            headers={"xi-api-key": clave},
+                                            json={"prompt": prompt, "music_length_ms": 25000},
+                                            timeout=aiohttp.ClientTimeout(total=240)) as r:
+                    if r.status != 200:
+                        log.warning("ElevenLabs Music respondio %s: %s", r.status, (await r.text())[:200])
+                        return None
+                    datos = await leer_todo(r, 8_000_000)
+            except Exception:
+                log.exception("Fallo ElevenLabs Music")
+                return None
+            with suppress(OSError), open(ruta, "wb") as fh:
+                fh.write(datos)
+            return datos
+
         @staticmethod
         def video_pajaro(miembro):
             """Ruta del video de felicitacion si el que llego a la meta es pajaro (por nombre), si no None."""
@@ -3342,17 +3374,20 @@ def create_client(config):
             log.info("%s llego a %s puntos en %s", yo, puntos, juego)
             # pajaro: en vez del mensaje + diploma (eso fue lo de jere) va el video del gato bailando
             video = self.video_pajaro(yo)
-            enviado = False
-            if video:
-                with suppress(Exception):
-                    await canal.send(content=yo.mention, file=discord.File(video, "felicidades.mp4"),
-                                     allowed_mentions=discord.AllowedMentions(users=[yo]))
-                    enviado = True
+            enviado = bool(video)
             with suppress(Exception):
-                if enviado:
-                    raise RuntimeError("ya mande el video")
                 await canal.send(random.choice(MENSAJE_META).format(m=yo.mention, n=yo.display_name, j=juego.upper(), p=puntos),
                                  allowed_mentions=discord.AllowedMentions(users=[yo]))
+            if video:  # pajaro: despues del mensaje va el video (en vez del diploma)
+                with suppress(Exception):
+                    await canal.send(file=discord.File(video, "felicidades.mp4"), allowed_mentions=discord.AllowedMentions.none())
+                cancion = None
+                with suppress(Exception):
+                    cancion = await self.cancion_pajaro()
+                if cancion:
+                    with suppress(Exception):
+                        await canal.send(file=discord.File(io.BytesIO(cancion), "cancion_para_pajaro.mp3"),
+                                         allowed_mentions=discord.AllowedMentions.none())
             avatar = b""
             with suppress(Exception):
                 avatar = await yo.display_avatar.replace(size=512, static_format="png").read()
