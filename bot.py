@@ -3336,7 +3336,7 @@ def create_client(config):
                 async with message.channel.typing():
                     async with self.sesion.post("https://api.elevenlabs.io/v1/music", params={"output_format": "mp3_44100_128"},
                                                 headers={"xi-api-key": clave},
-                                                json={"prompt": "cancion de fiesta electronica con cumbia, bailable, voz cantando en español: felicidades pajaro, mil doscientos veintitres puntos",
+                                                json={"prompt": "corrido tumbado mexicano, guitarra acustica, bajo sexto y beat de trap, voz melodica con autotune, cantando en español: felicidades pajaro, mil doscientos veintitres puntos",
                                                       "music_length_ms": 10000},
                                                 timeout=aiohttp.ClientTimeout(total=240)) as r:
                         if r.status != 200:
@@ -3350,7 +3350,7 @@ def create_client(config):
 
         async def cancion_pajaro(self):
             """Cancion de ElevenLabs Music para pajaro. Se genera una sola vez y queda guardada; si el plan no deja, None."""
-            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro.mp3")
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_corrido.mp3")
             with suppress(OSError):
                 with open(ruta, "rb") as fh:
                     return fh.read()
@@ -3360,8 +3360,8 @@ def create_client(config):
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
-            prompt = ("Cancion de fiesta electronica con cumbia, estilo party hard, bailable, con mucha energia, coros gritados "
-                      "y de fondo gente festejando. Voz que canta en español: "
+            prompt = ("Corrido tumbado mexicano: guitarra acustica y requinto, bajo sexto, beat de trap suave con 808, "
+                      "voz masculina melodica con autotune, ambiente de fiesta y celebracion. Canta en español: "
                       "\"Felicidades pajaro ctm, felicidades pajaro ctm, por llegar a mil doscientos veintitres puntos, "
                       "mil doscientos veintitres, mil doscientos veintitres, felicidades pajaro ctm\".")
             try:
