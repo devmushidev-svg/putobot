@@ -3381,6 +3381,29 @@ def create_client(config):
             return datos
 
         @staticmethod
+        def diploma_pajaro(avatar):
+            """Plantilla del diploma de pajaro con la foto de perfil pegada en el circulo (PNG en bytes) o None."""
+            from PIL import Image, ImageDraw
+            base = os.path.dirname(os.path.abspath(__file__))
+            for carpeta in (os.path.join(base, "media"), os.path.join(base, "repo", "media")):
+                ruta = os.path.join(carpeta, "diploma_pajaro.png")
+                if os.path.isfile(ruta):
+                    break
+            else:
+                return None
+            img = Image.open(ruta).convert("RGB")
+            if avatar:
+                cx, cy, r = 383.5, 290.5, 123  # circulo gris de la plantilla (768x1376)
+                foto = Image.open(io.BytesIO(avatar)).convert("RGB").resize((2 * r, 2 * r), Image.LANCZOS)
+                mascara = Image.new("L", (8 * r, 8 * r), 0)
+                ImageDraw.Draw(mascara).ellipse((0, 0, 8 * r - 1, 8 * r - 1), fill=255)
+                mascara = mascara.resize((2 * r, 2 * r), Image.LANCZOS)
+                img.paste(foto, (round(cx - r), round(cy - r)), mascara)
+            out = io.BytesIO()
+            img.save(out, "PNG")
+            return out.getvalue()
+
+        @staticmethod
         def video_pajaro(miembro, forzar=False):
             """Rutas de los videos de felicitacion si el que llego a la meta es pajaro (por ID o nombre), si no []."""
             nombres = " ".join(str(x) for x in (miembro.display_name, getattr(miembro, "name", ""), getattr(miembro, "global_name", "") or ""))
@@ -3407,6 +3430,12 @@ def create_client(config):
             with suppress(Exception):
                 await canal.send(random.choice(MENSAJE_META).format(m=yo.mention, n=yo.display_name, j=juego.upper(), p=puntos),
                                  allowed_mentions=discord.AllowedMentions(users=[yo]))
+            if video:  # diploma del gato con su foto de perfil en el circulo
+                with suppress(Exception):
+                    av = await yo.display_avatar.replace(size=512, static_format="png").read()
+                    dip = await asyncio.to_thread(self.diploma_pajaro, av)
+                    if dip:
+                        await canal.send(file=discord.File(io.BytesIO(dip), "diploma.png"), allowed_mentions=discord.AllowedMentions.none())
             for n, ruta in enumerate(video, 1):  # pajaro: despues del mensaje van los videos (en vez del diploma)
                 with suppress(Exception):
                     await canal.send(file=discord.File(ruta, f"felicidades{n}.mp4"), allowed_mentions=discord.AllowedMentions.none())
