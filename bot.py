@@ -3322,9 +3322,12 @@ def create_client(config):
                 return out
             return [base64.b64decode(x) for x in IMAGENES_DIPLOMA_B64]
 
-        async def probar_musica(self, message):
+        async def probar_musica(self, message, nueva=False):
             """!puto probar musica (secreto): genera (o reenvia si ya existe) LA MISMA cancion que recibe pajaro."""
-            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_corrido.mp3")
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_v2.mp3")
+            if nueva:
+                with suppress(OSError):
+                    os.remove(ruta)
             ya = os.path.isfile(ruta)
             await message.channel.send("ya estaba generada, la reenvio..." if ya else "generando la cancion de pajaro (~25 s, puede tardar un rato)...")
             errores = []
@@ -3343,7 +3346,7 @@ def create_client(config):
 
         async def cancion_pajaro(self, errores=None):
             """Cancion de ElevenLabs Music para pajaro. Se genera una sola vez y queda guardada; si el plan no deja, None."""
-            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_corrido.mp3")
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_v2.mp3")
             with suppress(OSError):
                 with open(ruta, "rb") as fh:
                     return fh.read()
@@ -3355,14 +3358,18 @@ def create_client(config):
             import aiohttp
             if self.sesion is None or self.sesion.closed:
                 self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
-            prompt = ("Corrido tumbado mexicano: guitarra acustica y requinto, bajo sexto, beat de trap suave con 808, "
-                      "voz masculina melodica con autotune, ambiente de fiesta y celebracion. Canta en español: "
-                      "\"Felicidades pajaro ctm, felicidades pajaro ctm, por llegar a mil doscientos veintitres puntos, "
-                      "mil doscientos veintitres, mil doscientos veintitres, felicidades pajaro ctm\".")
+            prompt = ("Corrido tumbado mexicano autentico, ritmo medio, 95 bpm. Instrumentacion: guitarra acustica de cuerdas de nailon "
+                      "con requinto tocando arpegios melodicos, bajo sexto, bajo 808 profundo y hi-hats de trap, algo de acordeon suave de fondo. "
+                      "Voz masculina natural, cruda y rasposa, cantada con acento mexicano, SIN autotune y SIN efectos en la voz. "
+                      "Ambiente de fiesta. Letra corta, en español, que rime, cantada exactamente asi:\n"
+                      "Pajaro ce te eme, mil doscientos veintitres,\n"
+                      "nadie te gano ni una sola vez.\n"
+                      "Pajaro ce te eme, subiste a la cima,\n"
+                      "felicidades campeon, ya llegaste arriba.")
             try:
                 async with self.sesion.post("https://api.elevenlabs.io/v1/music", params={"output_format": "mp3_44100_128"},
                                             headers={"xi-api-key": clave},
-                                            json={"prompt": prompt, "music_length_ms": 25000},
+                                            json={"prompt": prompt, "music_length_ms": 20000},
                                             timeout=aiohttp.ClientTimeout(total=240)) as r:
                     if r.status != 200:
                         texto = (await r.text())[:300]
@@ -4442,9 +4449,10 @@ def create_client(config):
         async def on_message(self, message):
             # secreto: "!puto probar musica" del dueño funciona en CUALQUIER servidor (el resto del bot es de un solo servidor)
             if not self.stopping and message.guild is not None and not message.author.bot and message.author.id == DUENO_ID \
-                    and message.content.strip().casefold().replace("música", "musica").split() == ["!puto", "probar", "musica"] \
+                    and message.content.strip().casefold().replace("música", "musica").split()[:3] == ["!puto", "probar", "musica"] \
+                    and message.content.strip().casefold().split()[3:] in ([], ["nueva"]) \
                     and message.channel.permissions_for(message.guild.me).send_messages:
-                await self.probar_musica(message)
+                await self.probar_musica(message, nueva=message.content.strip().casefold().split()[3:] == ["nueva"])
                 return
             if not self.stopping and message.guild is not None and not message.author.bot and message.author.id == DUENO_ID \
                     and message.content.strip().casefold().split() == ["!puto", "probar", "trofeo", "pajaro"] \
