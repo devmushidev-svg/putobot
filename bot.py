@@ -3323,39 +3323,34 @@ def create_client(config):
             return [base64.b64decode(x) for x in IMAGENES_DIPLOMA_B64]
 
         async def probar_musica(self, message):
-            """!puto probar musica (secreto): genera 10 s con ElevenLabs Music para ver si el plan lo deja."""
-            import aiohttp
-            clave = self.clave_eleven()
-            if not clave:
-                await message.channel.send("no hay clave de ElevenLabs")
-                return
-            if self.sesion is None or self.sesion.closed:
-                self.sesion = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
-            await message.channel.send("generando 10 s de musica...")
+            """!puto probar musica (secreto): genera (o reenvia si ya existe) LA MISMA cancion que recibe pajaro."""
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_corrido.mp3")
+            ya = os.path.isfile(ruta)
+            await message.channel.send("ya estaba generada, la reenvio..." if ya else "generando la cancion de pajaro (~25 s, puede tardar un rato)...")
+            errores = []
             try:
                 async with message.channel.typing():
-                    async with self.sesion.post("https://api.elevenlabs.io/v1/music", params={"output_format": "mp3_44100_128"},
-                                                headers={"xi-api-key": clave},
-                                                json={"prompt": "corrido tumbado mexicano, guitarra acustica, bajo sexto y beat de trap, voz melodica con autotune, cantando en español: felicidades pajaro, mil doscientos veintitres puntos",
-                                                      "music_length_ms": 10000},
-                                                timeout=aiohttp.ClientTimeout(total=240)) as r:
-                        if r.status != 200:
-                            await message.channel.send(f"no se pudo: ElevenLabs respondio {r.status}: {(await r.text())[:300]}")
-                            return
-                        datos = await leer_todo(r, 8_000_000)
-                await message.channel.send("si funciona", file=discord.File(io.BytesIO(datos), "prueba.mp3"))
+                    datos = await self.cancion_pajaro(errores)
             except Exception as e:
                 log.exception("Fallo probar musica")
                 await message.channel.send(f"fallo: {type(e).__name__}: {str(e)[:200]}")
+                return
+            if not datos:
+                await message.channel.send("no se pudo: " + (errores[0] if errores else "sin respuesta"))
+                return
+            await message.channel.send("si funciona, esta es la que le llega a pajaro",
+                                       file=discord.File(io.BytesIO(datos), "cancion_para_pajaro.mp3"))
 
-        async def cancion_pajaro(self):
+        async def cancion_pajaro(self, errores=None):
             """Cancion de ElevenLabs Music para pajaro. Se genera una sola vez y queda guardada; si el plan no deja, None."""
             ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cancion_pajaro_corrido.mp3")
             with suppress(OSError):
                 with open(ruta, "rb") as fh:
                     return fh.read()
+            errores = errores if errores is not None else []
             clave = self.clave_eleven()
             if not clave:
+                errores.append("no hay clave de ElevenLabs")
                 return None
             import aiohttp
             if self.sesion is None or self.sesion.closed:
@@ -3370,11 +3365,14 @@ def create_client(config):
                                             json={"prompt": prompt, "music_length_ms": 25000},
                                             timeout=aiohttp.ClientTimeout(total=240)) as r:
                     if r.status != 200:
-                        log.warning("ElevenLabs Music respondio %s: %s", r.status, (await r.text())[:200])
+                        texto = (await r.text())[:300]
+                        log.warning("ElevenLabs Music respondio %s: %s", r.status, texto[:200])
+                        errores.append(f"ElevenLabs respondio {r.status}: {texto}")
                         return None
                     datos = await leer_todo(r, 8_000_000)
-            except Exception:
+            except Exception as e:
                 log.exception("Fallo ElevenLabs Music")
+                errores.append(f"{type(e).__name__}: {str(e)[:200]}")
                 return None
             with suppress(OSError), open(ruta, "wb") as fh:
                 fh.write(datos)
