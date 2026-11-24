@@ -107,6 +107,7 @@ tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot 
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
 META_PUNTOS = 1223
+VOZ_ESPERA_RECONEXION = 120  # segundos que se espera a que discord.py recupere solo la voz antes de reconectar de cero
 PAJARO_ID = 1420079930150092863  # recibe el video del gato bailando al llegar a la meta
 MENSAJE_META = [
     "🏆🏆🏆 **{m} LLEGÓ A {p} PUNTOS EN {j}** 🏆🏆🏆\n"
@@ -2006,11 +2007,24 @@ def create_client(config):
             vc = canal.guild.voice_client
             try:
                 if vc and vc.is_connected():
+                    self._vc_caido_desde = None
                     if vc.channel.id != config.voice_channel_id:
                         await vc.move_to(canal)
                     return
                 if vc:
+                    # is_connected() da False mientras discord.py se reconecta solo (corte de red, cambio de servidor de voz).
+                    # Antes se mataba el cliente de voz a la fuerza a los 30 s y se volvia a entrar: el bot "se iba y volvia".
+                    # Ahora se le da tiempo a que se recupere solo; solo se reconecta de cero si sigue caido mucho rato.
+                    ahora = time.monotonic()
+                    if getattr(self, "_vc_caido_desde", None) is None:
+                        self._vc_caido_desde = ahora
+                        log.info("Voz: sin conexion, espero a que discord.py se reconecte solo")
+                    if ahora - self._vc_caido_desde < VOZ_ESPERA_RECONEXION:
+                        return
+                    log.warning("Voz: caida mas de %s s, reconecto de cero", VOZ_ESPERA_RECONEXION)
+                    self._vc_caido_desde = None
                     await vc.disconnect(force=True)
+                self._vc_caido_desde = None
                 await canal.connect(self_deaf=True, reconnect=True, timeout=30)
             except Exception:
                 log.exception("Voz: reintentando en 30 segundos")
@@ -4067,6 +4081,9 @@ def create_client(config):
             return True
 
         async def on_voice_state_update(self, member, before, after):
+            if self.user is not None and member.id == self.user.id:
+                # diagnostico: cada vez que el bot entra, sale o lo mueven queda en el log (journalctl -u vcbot | grep "Voz del bot")
+                log.info("Voz del bot: %s -> %s", before.channel and before.channel.name, after.channel and after.channel.name)
             if member.bot or self.stopping or self.dormido:
                 return
             vcid = config.voice_channel_id
