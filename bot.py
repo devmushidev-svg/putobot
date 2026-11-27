@@ -102,7 +102,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
 `!puto habla` → digo algo en el vc (con voz de verdad)
 `!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
-`!puto exterminar` → me apagan y nadie me puede encender (hacen falta 3 miembros usando `!puto revivir` para traerme de vuelta)
+`!puto exterminar` → me apagan y nadie me puede encender (hacen falta 3 miembros usando `!puto revivir`, o mi dueño solo)
 tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
@@ -366,7 +366,7 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
 DUENO_ID = 755802002000314413  # Mario (dueño del bot; usado en comandos secretos)
-REVIVIR_VOTOS = 3  # miembros distintos que tienen que usar !puto revivir para revivirlo cuando lo exterminan
+REVIVIR_VOTOS = 3  # miembros distintos que tienen que usar !puto revivir para revivirlo cuando lo exterminan (el dueño lo revive solo)
 ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
 SUPLICAS = ["enciendeme we", "we enciendeme", "enciendeme porfa :''v", "no me dejen asi, `!puto encender` :''v"]  # pacman con dos lágrimas en dos
 SUPLICAS_VIEJAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
@@ -1705,8 +1705,8 @@ class Config:
     voice_channel_id: int
     text_channel_id: int = 0
     target_user_id: int = 0
-    random_min: int = 5
-    random_max: int = 8
+    random_min: int = 35
+    random_max: int = 45
     insult_chance: float = 0.3
     tun_chance: float = 0.15
     react_chance: float = 0.05
@@ -1718,8 +1718,8 @@ class Config:
     tts_voice: str = "es-419"
     audio_chance: float = 0.05
     audio_cooldown: float = 120.0
-    direct_min: int = 12
-    direct_max: int = 18
+    direct_min: int = 80
+    direct_max: int = 120
     db_path: str = "markov.db"
     reply_chance: float = 0.04
     reply_cooldown: float = 5.0
@@ -1752,8 +1752,8 @@ class Config:
         return cls(token=token, voice_channel_id=number("VOICE_CHANNEL_ID", 0, 1, 2**63-1, int),
                    text_channel_id=number("TEXT_CHANNEL_ID", 0, 0, 2**63-1, int),
                    target_user_id=number("TARGET_USER_ID", 0, 0, 2**63-1, int),
-                   random_min=number("RANDOM_MIN", 5, 1, 1000, int),
-                   random_max=number("RANDOM_MAX", 8, 1, 1000, int),
+                   random_min=number("RANDOM_MIN", 35, 1, 1000, int),
+                   random_max=number("RANDOM_MAX", 45, 1, 1000, int),
                    insult_chance=number("INSULT_CHANCE", .3, 0, 1),
                    tun_chance=number("TUN_CHANCE", .15, 0, 1),
                    react_chance=number("REACT_CHANCE", .05, 0, 1),
@@ -1765,8 +1765,8 @@ class Config:
                    tts_voice=os.environ.get("TTS_VOICE", "es-419"),
                    audio_chance=number("AUDIO_CHANCE", .05, 0, 1),
                    audio_cooldown=number("AUDIO_COOLDOWN", 120, 0, 86400),
-                   direct_min=number("DIRECT_MIN", 12, 1, 1000, int),
-                   direct_max=number("DIRECT_MAX", 18, 1, 1000, int),
+                   direct_min=number("DIRECT_MIN", 80, 1, 1000, int),
+                   direct_max=number("DIRECT_MAX", 120, 1, 1000, int),
                    db_path=os.environ.get("DB_PATH", "markov.db"),
                    reply_chance=number("REPLY_CHANCE", .04, 0, 1),
                    reply_cooldown=number("REPLY_COOLDOWN", 5, 0, 86400),
@@ -4091,25 +4091,7 @@ def create_client(config):
             if self.user is not None and member.id == self.user.id:
                 # diagnostico: cada vez que el bot entra, sale o lo mueven queda en el log (journalctl -u vcbot | grep "Voz del bot")
                 log.info("Voz del bot: %s -> %s", before.channel and before.channel.name, after.channel and after.channel.name)
-            if member.bot or self.stopping or self.dormido:
-                return
-            vcid = config.voice_channel_id
-            entro = after.channel is not None and after.channel.id == vcid and (before.channel is None or before.channel.id != vcid)
-            salio = before.channel is not None and before.channel.id == vcid and (after.channel is None or after.channel.id != vcid)
-            if not (entro or salio):
-                return
-            ahora, key = time.monotonic(), (member.id, entro)
-            if ahora - self.vc_seen.get(key, -1e9) < 60:
-                return
-            self.vc_seen[key] = ahora
-            es_tun = bool(config.target_user_id) and member.id == config.target_user_id
-            opciones = (LLEGADAS_TUN if es_tun else LLEGADAS) if entro else (SALIDAS_TUN if es_tun else SALIDAS)
-            canal = self.get_channel(vcid)
-            try:
-                await canal.send(random.choice(opciones).format(n=member.display_name),
-                                 allowed_mentions=discord.AllowedMentions.none())
-            except Exception:
-                log.warning("No pude avisar entrada/salida del vc")
+            # ya no avisa cuando alguien entra o sale del vc (se quitó a pedido de Mario)
 
         async def apagar_prender(self, message, apagar, exterminar=False, revivir=False):
             # apagar: cualquiera lo apaga y cualquiera lo prende con !puto encender.
@@ -4126,19 +4108,20 @@ def create_client(config):
                         await self.send_text(message, "estoy muerto", reply=False)
                         log.info("%s intentó prenderlo estando exterminado", autor)
                         return
-                    # revivir necesita REVIVIR_VOTOS miembros distintos usando !puto revivir
-                    if autor.id in self.votos_revivir:
+                    # el dueño lo revive solo, al instante; los demás necesitan REVIVIR_VOTOS miembros distintos
+                    if autor.id != DUENO_ID:
+                        if autor.id in self.votos_revivir:
+                            faltan = REVIVIR_VOTOS - len(self.votos_revivir)
+                            await self.send_text(message, f"ya votaste, faltan {faltan} más", reply=False)
+                            return
+                        self.votos_revivir.add(autor.id)
+                        with suppress(OSError), open(self.flag_votos, "w") as fh:
+                            json.dump(sorted(self.votos_revivir), fh)
                         faltan = REVIVIR_VOTOS - len(self.votos_revivir)
-                        await self.send_text(message, f"ya votaste, faltan {faltan} más", reply=False)
-                        return
-                    self.votos_revivir.add(autor.id)
-                    with suppress(OSError), open(self.flag_votos, "w") as fh:
-                        json.dump(sorted(self.votos_revivir), fh)
-                    faltan = REVIVIR_VOTOS - len(self.votos_revivir)
-                    if faltan > 0:
-                        await self.send_text(message, f"{len(self.votos_revivir)}/{REVIVIR_VOTOS} para revivirme, faltan {faltan} más con `!puto revivir`", reply=False)
-                        log.info("%s votó revivirlo (%s/%s)", autor, len(self.votos_revivir), REVIVIR_VOTOS)
-                        return
+                        if faltan > 0:
+                            await self.send_text(message, f"{len(self.votos_revivir)}/{REVIVIR_VOTOS} para revivirme, faltan {faltan} más con `!puto revivir`", reply=False)
+                            log.info("%s votó revivirlo (%s/%s)", autor, len(self.votos_revivir), REVIVIR_VOTOS)
+                            return
                 elif revivir:
                     await self.send_text(message, "no estoy muerto, bruto", reply=False)
                     return
@@ -4608,7 +4591,7 @@ def create_client(config):
                         await self.worker.call("learn", mid, guild.id, cid, uid, text, revision)
                         await self.mandar_audio(message.channel, frase, message.content)
                         return
-                # Cada 12-18 mensajes le habla directo a quien escribió.
+                # Cada 80-120 mensajes le habla directo a quien escribió ("jere me contaron que...").
                 cid = message.channel.id
                 lo, hi = sorted((config.direct_min, config.direct_max))
                 n, meta = self.direct.get(cid) or (0, random.randint(lo, hi))
