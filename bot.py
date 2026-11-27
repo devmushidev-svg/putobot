@@ -102,7 +102,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto stock` → foto stock con una frase random de ustedes (`!puto stock perro` la busca en internet)
 `!puto habla` → digo algo en el vc (con voz de verdad)
 `!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
-`!puto exterminar` → me apagan y nadie me puede encender (solo mi dueño me revive)
+`!puto exterminar` → me apagan y nadie me puede encender (hacen falta 3 miembros usando `!puto revivir` para traerme de vuelta)
 tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
@@ -365,7 +365,8 @@ APARTES = ["no, ahora no", "ya voy, esperame", "shh, que está leyendo", "despu�
            "callate que estoy hablando", "sí, ya sé", "no le hagas caso"]
 VISTO_CHANCE = 0.07         # cuando lo mencionan, 7 % de las veces lo deja en visto y responde horas después
 APARTE_CHANCE = 0.05        # 5 % de sus respuestas traen un comentario a "alguien más"
-DUENO_ID = 755802002000314413  # Mario: el único que puede revivirlo (!puto revivir) cuando lo exterminan
+DUENO_ID = 755802002000314413  # Mario (dueño del bot; usado en comandos secretos)
+REVIVIR_VOTOS = 3  # miembros distintos que tienen que usar !puto revivir para revivirlo cuando lo exterminan
 ENCIENDANME = "porfavor enciendanme :'v"  # lo manda una vez al arrancar; si le responden, suplica (SUPLICAS) y si le responden a eso, calla
 SUPLICAS = ["enciendeme we", "we enciendeme", "enciendeme porfa :''v", "no me dejen asi, `!puto encender` :''v"]  # pacman con dos lágrimas en dos
 SUPLICAS_VIEJAS = ["nooo porfavor enciendanme con `!puto encender`", "porfa porfa porfa enciendanme :'v",
@@ -1925,6 +1926,12 @@ def create_client(config):
             self.exterminado = os.path.exists(self.flag_exterminado)
             if self.exterminado:
                 self.dormido = True
+            # votos para revivirlo (ids de quienes ya usaron !puto revivir); se guardan para sobrevivir a reinicios
+            self.flag_votos = os.path.join(os.path.dirname(self.flag_apagado), "revivir_votos")
+            self.votos_revivir = set()
+            if self.exterminado:
+                with suppress(OSError, ValueError, TypeError), open(self.flag_votos) as fh:
+                    self.votos_revivir = {int(x) for x in json.load(fh)}
             self.aviso_apagado = {}
             self.voces_bloqueadas = set()  # voces de la biblioteca que el plan gratis no deja usar (se reintentan al reiniciar)
             self.pendientes = set()        # canales con una respuesta "en visto" esperando
@@ -4106,7 +4113,7 @@ def create_client(config):
 
         async def apagar_prender(self, message, apagar, exterminar=False, revivir=False):
             # apagar: cualquiera lo apaga y cualquiera lo prende con !puto encender.
-            # exterminar: nadie lo puede encender; solo el dueño (DUENO_ID) lo revive con !puto revivir.
+            # exterminar: nadie lo puede encender; lo revive el voto de REVIVIR_VOTOS miembros distintos con !puto revivir.
             autor = message.author
             if apagar and exterminar and self.dormido and not self.exterminado:
                 pass  # ya estaba apagado, pero ahora lo exterminan
@@ -4115,12 +4122,25 @@ def create_client(config):
                 return
             if not apagar:
                 if self.exterminado:
-                    if not (revivir and autor.id == DUENO_ID):
+                    if not revivir:
                         await self.send_text(message, "estoy muerto", reply=False)
                         log.info("%s intentó prenderlo estando exterminado", autor)
                         return
-                elif revivir and autor.id != DUENO_ID:
-                    await self.send_text(message, "estoy muerto", reply=False)
+                    # revivir necesita REVIVIR_VOTOS miembros distintos usando !puto revivir
+                    if autor.id in self.votos_revivir:
+                        faltan = REVIVIR_VOTOS - len(self.votos_revivir)
+                        await self.send_text(message, f"ya votaste, faltan {faltan} más", reply=False)
+                        return
+                    self.votos_revivir.add(autor.id)
+                    with suppress(OSError), open(self.flag_votos, "w") as fh:
+                        json.dump(sorted(self.votos_revivir), fh)
+                    faltan = REVIVIR_VOTOS - len(self.votos_revivir)
+                    if faltan > 0:
+                        await self.send_text(message, f"{len(self.votos_revivir)}/{REVIVIR_VOTOS} para revivirme, faltan {faltan} más con `!puto revivir`", reply=False)
+                        log.info("%s votó revivirlo (%s/%s)", autor, len(self.votos_revivir), REVIVIR_VOTOS)
+                        return
+                elif revivir:
+                    await self.send_text(message, "no estoy muerto, bruto", reply=False)
                     return
             if apagar:
                 if exterminar:
@@ -4133,8 +4153,11 @@ def create_client(config):
                     open(self.flag_apagado, "w").close()
                 if exterminar:
                     self.exterminado = True
+                    self.votos_revivir = set()
                     with suppress(OSError):
                         open(self.flag_exterminado, "w").close()
+                    with suppress(OSError):
+                        os.remove(self.flag_votos)
                 for juego in list(self.juegos.values()):
                     tarea = juego.get("tarea") if isinstance(juego, dict) else None
                     if tarea:
@@ -4147,7 +4170,8 @@ def create_client(config):
             else:
                 self.dormido = False
                 self.exterminado = False
-                for f in (self.flag_apagado, self.flag_exterminado):
+                self.votos_revivir = set()
+                for f in (self.flag_apagado, self.flag_exterminado, self.flag_votos):
                     with suppress(OSError):
                         os.remove(f)
                 await self.send_text(message, random.choice(["ya no voy a joder", "ya volví, ya no voy a joder", "prendido. ya no voy a joder"]), reply=False)
