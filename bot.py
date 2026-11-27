@@ -103,7 +103,7 @@ AYUDA = """**comandos del puto** (no los uses mucho que me canso)
 `!puto habla` → digo algo en el vc (con voz de verdad)
 `!puto apagar` / `!puto encender` → me quedo callado en el vc o vuelvo a hablar
 `!puto exterminar` → me apagan y nadie me puede encender (hacen falta 3 miembros usando `!puto revivir`, o mi dueño solo)
-tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot y le digo cosas a tun. de nada"""
+tambien hablo solo, reacciono, me cambio el nombre, a veces sale tu version bot. de nada"""
 # Premio por llegar a META_PUNTOS en cualquier juego (una sola vez por juego, justo al llegar).
 # {m} = mención, {n} = nombre, {j} = juego, {p} = puntos.
 META_PUNTOS = 1223
@@ -280,7 +280,7 @@ PERSONALIDAD = (
     "Vos hablás como un amigo normal de ellos: tranquilo, directo, con humor seco, ni grosero ni empalagoso. Nada de "
     "tono tierno o cursi (nada de \"uyy\", \"tkm\", \"n.n\", \"te me enojaste\", ni emojis de llorar o caritas); "
     "emojis casi nunca. Muy de vez en cuando (más o menos uno de cada cinco mensajes) los molestás un poco en broma, "
-    "y a tun lo molestás más que a nadie. Si alguien te insulta o se enoja, no le sigás el pleito: bajale o reíte. "
+    "pero nunca a tun en particular. Si alguien te insulta o se enoja, no le sigás el pleito: bajale o reíte. "
     "A veces mezclás inglés como hacen ellos (una palabra o una frase), no siempre. "
     "No uses palabras de Argentina ni de España (como che, boludo, sorete, pavadas, romper las pelotas, siesta). "
     "Escribí \"que\" completo, nunca \"q\". Nada de tono de asistente: no expliques de más, no aconsejes, no pidas "
@@ -3107,7 +3107,7 @@ def create_client(config):
                         texto = t
                         break
                 revelar = random.choice(["era **inventado**, lo arme yo con sus pendejadas",
-                                         "**inventado**. aunque suena a algo que diria tun"])
+                                         "**inventado**. aunque suena a algo que diria cualquiera de ustedes"])
             if not texto:
                 await self.send_text(message, "no tengo material, hablen mas")
                 return
@@ -4424,7 +4424,7 @@ def create_client(config):
                             log.warning("No pude escribir sobre la imagen", exc_info=True)
                             data = None
                 if not data:
-                    await self.send_text(message, random.choice(["no encontre nada, ni internet te quiere", "se cayo la busqueda, culpa de tun"]))
+                    await self.send_text(message, random.choice(["no encontre nada, ni internet te quiere", "se cayo la busqueda, intenta de nuevo"]))
                 else:
                     with suppress(discord.HTTPException):
                         await message.channel.send(file=discord.File(io.BytesIO(data), "puto.jpg"),
@@ -4553,19 +4553,7 @@ def create_client(config):
                 if random.random() < config.react_chance:
                     with suppress(discord.HTTPException):
                         await message.add_reaction(random.choice(REACCIONES))
-                if config.target_user_id and uid == config.target_user_id and random.random() < config.tun_chance:
-                    # A tun se le insulta en el 15 % de sus mensajes, sin cooldown.
-                    await self.worker.call("learn", mid, guild.id, message.channel.id, uid, text, revision)
-                    if p.send_messages:
-                        await self.send_text(message, random.choice(INSULTOS), reply=True)
-                    return
-                hit = INSULTO_RE.search(unicodedata.normalize("NFKD", message.content.casefold())
-                                        .encode("ascii", "ignore").decode())
-                if hit and random.random() < config.insult_chance and p.send_messages \
-                        and self.limits.reserve(message.channel.id, uid, True):
-                    await self.worker.call("learn", mid, guild.id, message.channel.id, uid, text, revision)
-                    await self.send_text(message, random.choice(SOBRE_TUN).format(w=hit.group(0)), reply=True)
-                    return
+                # (se quitaron los insultos a tun y las respuestas "eso es tun" cuando alguien insulta)
                 ref = await self.mensaje_referenciado(message)
                 le_respondieron = isinstance(ref, discord.Message) and ref.author.id == self.user.id
                 mentioned = self.user in message.mentions or le_respondieron
